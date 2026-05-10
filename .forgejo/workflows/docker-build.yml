@@ -13,25 +13,20 @@ jobs:
           git clone https://forgejo.xynogen.xyz/xynogen/9router.git .
           git checkout ${{ github.sha }}
 
-      - name: Install QEMU
-        run: |
-          docker run --privileged --rm tonistiigi/binfmt --install all
-
-      - name: Create buildx builder
-        run: |
-          docker buildx create --use --name multiarch
-          docker buildx inspect --bootstrap
-
       - name: Login to Forgejo Registry
         run: |
           echo "${{ secrets.REGISTRY_TOKEN }}" | docker login forgejo.xynogen.xyz \
             -u xynogen \
             --password-stdin
 
-      - name: Build and push multiarch image
+      - name: Build Docker image
         run: |
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+          docker build \
             -t forgejo.xynogen.xyz/xynogen/9router:latest \
             -t forgejo.xynogen.xyz/xynogen/9router:${{ github.sha }} \
-            --push .
+            .
+
+      - name: Push Docker image
+        run: |
+          docker push forgejo.xynogen.xyz/xynogen/9router:latest
+          docker push forgejo.xynogen.xyz/xynogen/9router:${{ github.sha }}
