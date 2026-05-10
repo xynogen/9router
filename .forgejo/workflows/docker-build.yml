@@ -6,16 +6,21 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+
     steps:
       - name: Clone repository
         run: |
           git clone https://forgejo.xynogen.xyz/xynogen/9router.git .
           git checkout ${{ github.sha }}
 
-      - name: Check files
+      - name: Install QEMU
         run: |
-          pwd
-          ls -la
+          docker run --privileged --rm tonistiigi/binfmt --install all
+
+      - name: Create buildx builder
+        run: |
+          docker buildx create --use --name multiarch
+          docker buildx inspect --bootstrap
 
       - name: Login to Forgejo Registry
         run: |
@@ -23,14 +28,10 @@ jobs:
             -u xynogen \
             --password-stdin
 
-      - name: Build Docker image
+      - name: Build and push multiarch image
         run: |
-          docker build \
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
             -t forgejo.xynogen.xyz/xynogen/9router:latest \
             -t forgejo.xynogen.xyz/xynogen/9router:${{ github.sha }} \
-            .
-
-      - name: Push Docker image
-        run: |
-          docker push forgejo.xynogen.xyz/xynogen/9router:latest
-          docker push forgejo.xynogen.xyz/xynogen/9router:${{ github.sha }}
+            --push .
