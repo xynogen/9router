@@ -1,0 +1,28 @@
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Login to Forgejo Registry
+        run: |
+          echo "${{ secrets.REGISTRY_TOKEN }}" | docker login forgejo:3000 \
+            -u xynogen \
+            --password-stdin
+
+      - name: Build Docker image
+        run: |
+          docker build -t forgejo:3000/xynogen/9router:latest .
+          docker tag forgejo:3000/xynogen/9router:latest \
+            forgejo:3000/xynogen/9router:${{ github.sha }}
+
+      - name: Push Docker image
+        run: |
+          docker push forgejo:3000/xynogen/9router:latest
+          docker push forgejo:3000/xynogen/9router:${{ github.sha }}
