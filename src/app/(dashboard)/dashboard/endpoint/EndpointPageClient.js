@@ -466,6 +466,8 @@ export default function APIPageClient({ machineId }) {
           } else if (event === "done") {
             setTsInstalled(true);
             setTsInstalling(false);
+            setShowTsModal(false);
+            handleConnectTailscale();
             return;
           } else if (event === "error") {
             setTsStatus({ type: "error", message: data.error || "Install failed" });
@@ -628,8 +630,7 @@ export default function APIPageClient({ machineId }) {
     setTsStatus(null);
     setTsInstallLog([]);
     const data = await checkTailscaleInstalled();
-    if (data?.installed) {
-      // Skip modal, connect directly when already installed
+    if (data?.installed && data?.hasCachedPassword) {
       handleConnectTailscale();
     } else {
       setShowTsModal(true);

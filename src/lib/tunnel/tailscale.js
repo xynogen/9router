@@ -433,8 +433,22 @@ async function ensureUserOwnedDir(dir) {
   } catch { /* ignore */ }
 }
 
-/** Start tailscaled in userspace-networking mode (no root, no sudo prompt). */
-export async function startDaemonWithPassword(_sudoPasswordUnused) {
+/** Check if running daemon uses TUN mode (Funnel TLS requires TUN). */
+function isDaemonTunMode() {
+  try {
+    const ps = execSync(`pgrep -af "tailscaled.*${TAILSCALE_SOCKET}"`, { encoding: "utf8", timeout: 2000 }).trim();
+    if (!ps) return null;
+    return !ps.includes("--tun=userspace-networking");
+  } catch { return null; }
+}
+
+/**
+ * Start tailscaled.
+ * - With sudoPassword: TUN mode (root) → Funnel TLS works
+ * - Without: userspace-networking fallback (no sudo, but Funnel TLS unstable)
+ * State always lives in ~/.9router/tailscale/ via --statedir.
+ */
+export async function startDaemonWithPassword(sudoPassword) {
   if (IS_WINDOWS) {
     // Windows: tailscale runs as a Windows Service. Start it then poll BackendState
     // until daemon finishes init (avoids "NoState" errors when calling funnel/up too early).
@@ -459,64 +473,62 @@ export async function startDaemonWithPassword(_sudoPasswordUnused) {
     return;
   }
 
-  // Detect unhealthy state: dir/files not owned by current user OR multiple daemons running.
-  // Either condition blocks userspace daemon → must kill all + reclaim ownership.
-  let needsRestart = false;
-  try {
-    const st = fs.statSync(TAILSCALE_DIR);
-    if (st.uid !== process.getuid()) needsRestart = true;
-    // Also check state file (the actual unhealthy resource)
-    const stateFile = path.join(TAILSCALE_DIR, "tailscaled.state");
-    if (fs.existsSync(stateFile) && fs.statSync(stateFile).uid !== process.getuid()) needsRestart = true;
-  } catch { /* dir doesn't exist yet */ }
+  const wantTun = !!sudoPassword;
+  const currentMode = isDaemonTunMode(); // true=TUN, false=userspace, null=not running
 
-  // Detect duplicate daemons on same socket → also requires restart
-  if (!needsRestart) {
-    try {
-      const ps = execSync(`pgrep -f "tailscaled.*${TAILSCALE_SOCKET}"`, { encoding: "utf8", timeout: 2000 }).trim();
-      if (ps && ps.split("\n").length > 1) needsRestart = true;
-    } catch { /* no match → ok */ }
-  }
-
-  if (needsRestart) {
-    // Kill ALL tailscaled processes (root + user duplicates). Best-effort with/without sudo.
-    try { execSync("pkill -9 -x tailscaled", { stdio: "ignore", timeout: 3000 }); } catch { /* ignore */ }
-    try { execSync("sudo -n pkill -9 -x tailscaled", { stdio: "ignore", timeout: 3000 }); } catch { /* ignore */ }
-    await new Promise((r) => setTimeout(r, 1500));
-  } else {
-    // Check if our userspace daemon already responds
+  // Daemon already running in correct mode → reuse
+  if (currentMode !== null && currentMode === wantTun) {
     try {
       const bin = getTailscaleBin() || "tailscale";
       execSync(`"${bin}" ${SOCKET_FLAG.join(" ")} status --json`, {
-        stdio: "ignore",
-        windowsHide: true,
-        env: { ...process.env, PATH: EXTENDED_PATH },
-        timeout: 3000
+        stdio: "ignore", windowsHide: true,
+        env: { ...process.env, PATH: EXTENDED_PATH }, timeout: 3000
       });
-      return; // Already running and user-owned
-    } catch { /* not running, start it */ }
+      return;
+    } catch { /* unresponsive, restart below */ }
   }
 
-  // Reclaim folder ownership if a previous root daemon left it locked
+  // Mode mismatch or unresponsive → kill all daemons on our socket
+  try { execSync(`pkill -9 -f "tailscaled.*${TAILSCALE_SOCKET}"`, { stdio: "ignore", timeout: 3000 }); } catch { /* ignore */ }
+  if (sudoPassword) {
+    try { await execWithPassword(`pkill -9 -f "tailscaled.*${TAILSCALE_SOCKET}"`, sudoPassword); } catch { /* ignore */ }
+  } else {
+    try { execSync(`sudo -n pkill -9 -f "tailscaled.*${TAILSCALE_SOCKET}"`, { stdio: "ignore", timeout: 3000 }); } catch { /* ignore */ }
+  }
+  await new Promise((r) => setTimeout(r, 1500));
+
+  // Reclaim folder ownership (previous root daemon may have locked it)
   await ensureUserOwnedDir(TAILSCALE_DIR);
 
-  // Userspace-networking mode: no TUN device → no root needed → no sudo prompt
   const tailscaledBin = IS_MAC ? "/usr/local/bin/tailscaled" : "tailscaled";
-  const args = [
+  const daemonArgs = [
     `--socket=${TAILSCALE_SOCKET}`,
     `--statedir=${TAILSCALE_DIR}`,
-    "--tun=userspace-networking",
   ];
+  if (!wantTun) daemonArgs.push("--tun=userspace-networking");
 
-  const child = spawn(tailscaledBin, args, {
-    detached: true,
-    stdio: "ignore",
-    cwd: os.tmpdir(),
-    env: { ...process.env, PATH: EXTENDED_PATH },
-  });
-  child.unref();
+  if (wantTun) {
+    // TUN mode: spawn via sudo, password via stdin. Detached so it survives parent exit.
+    const child = spawn("sudo", ["-S", tailscaledBin, ...daemonArgs], {
+      detached: true,
+      stdio: ["pipe", "ignore", "ignore"],
+      cwd: os.tmpdir(),
+      env: { ...process.env, PATH: EXTENDED_PATH },
+    });
+    child.stdin.write(`${sudoPassword}\n`);
+    child.stdin.end();
+    child.unref();
+  } else {
+    const child = spawn(tailscaledBin, daemonArgs, {
+      detached: true,
+      stdio: "ignore",
+      cwd: os.tmpdir(),
+      env: { ...process.env, PATH: EXTENDED_PATH },
+    });
+    child.unref();
+  }
 
-  // Wait for daemon socket to be ready
+  // Wait for socket ready
   await new Promise((r) => setTimeout(r, 3000));
 }
 

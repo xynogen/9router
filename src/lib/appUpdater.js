@@ -62,7 +62,7 @@ function collectAppPids() {
       });
     } catch { /* no processes */ }
 
-    // Kill cloudflared + tray binaries (giữ lock app dir)
+    // Kill cloudflared + tray binaries (hold app dir lock)
     for (const procName of ["cloudflared", "tray_windows_release"]) {
       try {
         const cmd = `powershell -NonInteractive -WindowStyle Hidden -Command "Get-Process ${procName} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id"`;
