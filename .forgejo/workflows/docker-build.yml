@@ -2,11 +2,21 @@ on:
   push:
     branches:
       - master
- 
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
+      - name: Clone repository
+        run: |
+          git clone https://forgejo.xynogen.xyz/xynogen/9router.git .
+          git checkout ${{ github.sha }}
+
+      - name: Check files
+        run: |
+          pwd
+          ls -la
+
       - name: Login to Forgejo Registry
         run: |
           echo "${{ secrets.REGISTRY_TOKEN }}" | docker login forgejo.xynogen.xyz \
