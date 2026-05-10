@@ -7,22 +7,19 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: https://code.forgejo.org/actions/checkout@v3
-
       - name: Login to Forgejo Registry
         run: |
-          echo "${{ secrets.REGISTRY_TOKEN }}" | docker login forgejo:3000 \
+          echo "${{ secrets.REGISTRY_TOKEN }}" | docker login forgejo.xynogen.xyz \
             -u xynogen \
             --password-stdin
 
       - name: Build Docker image
         run: |
-          docker build -t forgejo:3000/xynogen/9router:latest .
-          docker tag forgejo:3000/xynogen/9router:latest \
-            forgejo:3000/xynogen/9router:${{ github.sha }}
+          docker build -t forgejo.xynogen.xyz/xynogen/9router:latest .
+          docker tag forgejo.xynogen.xyz/xynogen/9router:latest \
+            forgejo.xynogen.xyz/xynogen/9router:${{ github.sha }}
 
       - name: Push Docker image
         run: |
-          docker push forgejo:3000/xynogen/9router:latest
-          docker push forgejo:3000/xynogen/9router:${{ github.sha }}
+          docker push forgejo.xynogen.xyz/xynogen/9router:latest
+          docker push forgejo.xynogen.xyz/xynogen/9router:${{ github.sha }}
