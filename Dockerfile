@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/root/.npm \
 
 COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN rm -rf .next && npm run build
+RUN rm -rf .next && npm run build && ls -la .next/standalone/ || true
 
 FROM ${NODE_IMAGE} AS runner
 WORKDIR /app

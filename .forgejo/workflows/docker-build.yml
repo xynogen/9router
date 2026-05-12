@@ -21,7 +21,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build \
+          docker build --no-cache \
             -t forgejo.xynogen.xyz/xynogen/9router:latest \
             -t forgejo.xynogen.xyz/xynogen/9router:${{ github.sha }} \
             .
