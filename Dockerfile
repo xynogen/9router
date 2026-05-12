@@ -5,6 +5,7 @@ WORKDIR /app
 
 FROM base AS builder
 
+ARG CACHE_BUST=1
 RUN apk --no-cache upgrade && apk --no-cache add python3 make g++ linux-headers
 
 COPY package.json ./
@@ -13,7 +14,7 @@ RUN --mount=type=cache,target=/root/.npm \
 
 COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN rm -rf .next && npm run build
 
 FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
