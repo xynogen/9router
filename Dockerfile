@@ -5,7 +5,6 @@ WORKDIR /app
 
 FROM base AS builder
 
-ARG CACHE_BUST=1
 RUN apk --no-cache upgrade && apk --no-cache add python3 make g++ linux-headers
 
 COPY package.json ./
@@ -14,7 +13,7 @@ RUN --mount=type=cache,target=/root/.npm \
 
 COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN rm -rf .next && npm run build && ls -la .next/standalone/ || true
+RUN rm -rf .next && npm run build
 
 FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
@@ -27,7 +26,7 @@ ENV HOSTNAME=0.0.0.0
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATA_DIR=/app/data
 
-COPY --from=builder /app/.next/standalone/9router ./
+COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/open-sse ./open-sse
