@@ -1,15 +1,18 @@
 # syntax=docker/dockerfile:1.7
-ARG NODE_IMAGE=node:22-alpine
+ARG NODE_IMAGE=node:22-slim
 FROM ${NODE_IMAGE} AS base
 WORKDIR /app
 
 FROM base AS builder
 
-RUN apk --no-cache add python3 make g++ linux-headers
+# Build deps for native modules (better-sqlite3, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 
-COPY package.json ./
+COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm \
-  npm install --prefer-offline --no-audit
+  npm ci --prefer-offline --no-audit
 
 COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -37,12 +40,15 @@ COPY --from=builder /app/node_modules/node-forge ./node_modules/node-forge
 # Ensure `next` is available at runtime in case tracing did not include it.
 COPY --from=builder /app/node_modules/next ./node_modules/next
 
-RUN apk --no-cache add su-exec && \
-  mkdir -p /app/data /app/data-home && \
-  chown -R node:node /app/data /app/data-home && \
-  ln -sf /app/data-home /root/.9router 2>/dev/null || true && \
-  printf '#!/bin/sh\nchown -R node:node /app/data /app/data-home 2>/dev/null\nexec su-exec node "$@"\n' > /entrypoint.sh && \
-  chmod +x /entrypoint.sh
+# gosu = drop-in for su-exec on Debian; create non-root user (node user not in slim image)
+RUN apt-get update && apt-get install -y --no-install-recommends gosu \
+  && rm -rf /var/lib/apt/lists/* \
+  && groupadd -r node -g 1000 && useradd -r -u 1000 -g node node \
+  && mkdir -p /app/data /app/data-home \
+  && chown -R node:node /app/data /app/data-home \
+  && ln -sf /app/data-home /root/.9router 2>/dev/null || true \
+  && printf '#!/bin/sh\nchown -R node:node /app/data /app/data-home 2>/dev/null\nexec gosu node "$@"\n' > /entrypoint.sh \
+  && chmod +x /entrypoint.sh
 
 EXPOSE 20128
 
