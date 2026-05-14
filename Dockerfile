@@ -37,12 +37,10 @@ COPY --from=builder /app/node_modules/node-forge ./node_modules/node-forge
 # Ensure `next` is available at runtime in case tracing did not include it.
 COPY --from=builder /app/node_modules/next ./node_modules/next
 
-RUN mkdir -p /app/data && chown -R node:node /app && \
-  mkdir -p /app/data-home && chown node:node /app/data-home && \
-  ln -sf /app/data-home /root/.9router 2>/dev/null || true
-
-# Fix permissions at runtime (handles mounted volumes)
-RUN apk --no-cache upgrade && apk --no-cache add su-exec && \
+RUN apk --no-cache add su-exec && \
+  mkdir -p /app/data /app/data-home && \
+  chown -R node:node /app/data /app/data-home && \
+  ln -sf /app/data-home /root/.9router 2>/dev/null || true && \
   printf '#!/bin/sh\nchown -R node:node /app/data /app/data-home 2>/dev/null\nexec su-exec node "$@"\n' > /entrypoint.sh && \
   chmod +x /entrypoint.sh
 
