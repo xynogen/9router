@@ -7,9 +7,9 @@ FROM base AS builder
 
 RUN apk --no-cache add python3 make g++ linux-headers
 
-COPY package.json package-lock.json* ./
+COPY package.json ./
 RUN --mount=type=cache,target=/root/.npm \
-  npm ci --prefer-offline --no-audit
+  npm install --prefer-offline --no-audit
 
 COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
