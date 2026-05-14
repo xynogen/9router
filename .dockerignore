@@ -1,13 +1,18 @@
 # VCS
 .git
 **/.git
+.gitignore
+.gitattributes
 
 # Editor
 .vscode
 **/.vscode
+.idea
+*.swp
 
 # Dependencies and build output
 node_modules
+**/node_modules
 .next
 out
 build
@@ -17,6 +22,7 @@ coverage
 # Runtime data and logs
 data
 logs
+*.log
 
 # Local env files (inject at runtime via --env-file or -e)
 .env
@@ -30,3 +36,27 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# Documentation (not needed in image)
+docs
+gitbook
+*.md
+LICENSE
+CHANGELOG.md
+
+# CI/CD
+.github
+.forgejo
+
+# Tests
+tests
+tester
+**/*.test.js
+**/*.spec.js
+
+# Misc
+.DS_Store
+Thumbs.db
+images
+.npmignore
+captain-definition
