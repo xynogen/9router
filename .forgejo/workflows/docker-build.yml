@@ -35,34 +35,52 @@ jobs:
         with:
           context: .
           push: true
-          tags: forgejo.xynogen.xyz/xynogen/9router:latest
+          tags: |
+            forgejo.xynogen.xyz/xynogen/9router:latest
+            forgejo.xynogen.xyz/xynogen/9router:${{ github.sha }}
           cache-from: type=registry,ref=forgejo.xynogen.xyz/xynogen/9router:latest
           cache-to: type=inline
           provenance: false
 
-      - name: Cleanup old tags
+      - name: Cleanup old tags (keep last 30 days)
         run: |
-          # Get all tags from the registry
+          RETENTION_DAYS=30
+          CUTOFF_DATE=$(date -d "$RETENTION_DAYS days ago" +%s)
+          
+          # Get all tags
           TAGS=$(curl -s -u xynogen:${{ secrets.REGISTRY_TOKEN }} \
             https://forgejo.xynogen.xyz/v2/xynogen/9router/tags/list | \
             grep -oP '(?<="tags":\[)[^\]]+' | tr -d '"' | tr ',' '\n')
           
-          # Delete all tags except 'latest' and 'previous'
           for tag in $TAGS; do
-            if [ "$tag" != "latest" ] && [ "$tag" != "previous" ]; then
-              echo "Deleting tag: $tag"
-              # Get the manifest digest
-              DIGEST=$(curl -s -I -u xynogen:${{ secrets.REGISTRY_TOKEN }} \
-                -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-                https://forgejo.xynogen.xyz/v2/xynogen/9router/manifests/$tag | \
-                grep -i "Docker-Content-Digest:" | awk '{print $2}' | tr -d '\r')
+            # Skip 'latest' tag
+            if [ "$tag" = "latest" ]; then
+              continue
+            fi
+            
+            # Get image creation date
+            CREATED=$(curl -s -u xynogen:${{ secrets.REGISTRY_TOKEN }} \
+              -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+              https://forgejo.xynogen.xyz/v2/xynogen/9router/manifests/$tag | \
+              grep -oP '(?<="created":")[^"]+' | head -1)
+            
+            if [ -n "$CREATED" ]; then
+              IMAGE_DATE=$(date -d "$CREATED" +%s 2>/dev/null || echo "0")
               
-              if [ -n "$DIGEST" ]; then
-                # Delete the manifest by digest
-                curl -X DELETE -u xynogen:${{ secrets.REGISTRY_TOKEN }} \
-                  https://forgejo.xynogen.xyz/v2/xynogen/9router/manifests/$DIGEST || echo "Failed to delete $tag"
+              if [ "$IMAGE_DATE" -lt "$CUTOFF_DATE" ] && [ "$IMAGE_DATE" != "0" ]; then
+                echo "Deleting old tag: $tag (created: $CREATED)"
+                
+                DIGEST=$(curl -s -I -u xynogen:${{ secrets.REGISTRY_TOKEN }} \
+                  -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+                  https://forgejo.xynogen.xyz/v2/xynogen/9router/manifests/$tag | \
+                  grep -i "Docker-Content-Digest:" | awk '{print $2}' | tr -d '\r')
+                
+                if [ -n "$DIGEST" ]; then
+                  curl -X DELETE -u xynogen:${{ secrets.REGISTRY_TOKEN }} \
+                    https://forgejo.xynogen.xyz/v2/xynogen/9router/manifests/$DIGEST || echo "Failed to delete $tag"
+                fi
               else
-                echo "Could not get digest for $tag, skipping"
+                echo "Keeping tag: $tag (within retention period)"
               fi
             fi
           done
