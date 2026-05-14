@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm \
-  npm ci --prefer-offline --no-audit
+  npm ci --prefer-offline --no-audit --include=optional
 
 COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
