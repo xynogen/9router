@@ -51,14 +51,18 @@ jobs:
           for tag in $TAGS; do
             if [ "$tag" != "latest" ] && [ "$tag" != "previous" ]; then
               echo "Deleting tag: $tag"
-              # Get the digest for the tag
-              DIGEST=$(curl -s -u xynogen:${{ secrets.REGISTRY_TOKEN }} \
+              # Get the manifest digest
+              DIGEST=$(curl -s -I -u xynogen:${{ secrets.REGISTRY_TOKEN }} \
                 -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
                 https://forgejo.xynogen.xyz/v2/xynogen/9router/manifests/$tag | \
-                grep -oP '(?<="digest":")[^"]+' | head -1)
+                grep -i "Docker-Content-Digest:" | awk '{print $2}' | tr -d '\r')
               
-              # Delete the tag
-              curl -X DELETE -u xynogen:${{ secrets.REGISTRY_TOKEN }} \
-                https://forgejo.xynogen.xyz/v2/xynogen/9router/manifests/$DIGEST || true
+              if [ -n "$DIGEST" ]; then
+                # Delete the manifest by digest
+                curl -X DELETE -u xynogen:${{ secrets.REGISTRY_TOKEN }} \
+                  https://forgejo.xynogen.xyz/v2/xynogen/9router/manifests/$DIGEST || echo "Failed to delete $tag"
+              else
+                echo "Could not get digest for $tag, skipping"
+              fi
             fi
           done
