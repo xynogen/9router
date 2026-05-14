@@ -21,14 +21,21 @@ jobs:
           username: xynogen
           password: ${{ secrets.REGISTRY_TOKEN }}
 
+      - name: Tag current latest as previous
+        run: |
+          # Pull current latest and re-tag it as previous before building new latest
+          docker pull forgejo.xynogen.xyz/xynogen/9router:latest || true
+          if docker image inspect forgejo.xynogen.xyz/xynogen/9router:latest >/dev/null 2>&1; then
+            docker tag forgejo.xynogen.xyz/xynogen/9router:latest forgejo.xynogen.xyz/xynogen/9router:previous
+            docker push forgejo.xynogen.xyz/xynogen/9router:previous
+          fi
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: |
-            forgejo.xynogen.xyz/xynogen/9router:latest
-            forgejo.xynogen.xyz/xynogen/9router:${{ github.sha }}
+          tags: forgejo.xynogen.xyz/xynogen/9router:latest
           cache-from: type=registry,ref=forgejo.xynogen.xyz/xynogen/9router:latest
           cache-to: type=inline
           provenance: false
