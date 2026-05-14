@@ -29,6 +29,6 @@ jobs:
           tags: |
             forgejo.xynogen.xyz/xynogen/9router:latest
             forgejo.xynogen.xyz/xynogen/9router:${{ github.sha }}
-          cache-from: type=registry,ref=forgejo.xynogen.xyz/xynogen/9router:buildcache
-          cache-to: type=registry,ref=forgejo.xynogen.xyz/xynogen/9router:buildcache,mode=max
+          cache-from: type=registry,ref=forgejo.xynogen.xyz/xynogen/9router:latest
+          cache-to: type=inline
           provenance: false
