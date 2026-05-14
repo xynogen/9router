@@ -39,3 +39,26 @@ jobs:
           cache-from: type=registry,ref=forgejo.xynogen.xyz/xynogen/9router:latest
           cache-to: type=inline
           provenance: false
+
+      - name: Cleanup old tags
+        run: |
+          # Get all tags from the registry
+          TAGS=$(curl -s -u xynogen:${{ secrets.REGISTRY_TOKEN }} \
+            https://forgejo.xynogen.xyz/v2/xynogen/9router/tags/list | \
+            grep -oP '(?<="tags":\[)[^\]]+' | tr -d '"' | tr ',' '\n')
+          
+          # Delete all tags except 'latest' and 'previous'
+          for tag in $TAGS; do
+            if [ "$tag" != "latest" ] && [ "$tag" != "previous" ]; then
+              echo "Deleting tag: $tag"
+              # Get the digest for the tag
+              DIGEST=$(curl -s -u xynogen:${{ secrets.REGISTRY_TOKEN }} \
+                -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+                https://forgejo.xynogen.xyz/v2/xynogen/9router/manifests/$tag | \
+                grep -oP '(?<="digest":")[^"]+' | head -1)
+              
+              # Delete the tag
+              curl -X DELETE -u xynogen:${{ secrets.REGISTRY_TOKEN }} \
+                https://forgejo.xynogen.xyz/v2/xynogen/9router/manifests/$DIGEST || true
+            fi
+          done
