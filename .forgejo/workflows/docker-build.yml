@@ -24,13 +24,10 @@ jobs:
           username: xynogen
           password: ${{ secrets.REGISTRY_TOKEN }}
 
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
+      - name: Prepare cache directory
+        run: |
+          mkdir -p /cache/buildx
+          ls -la /cache/buildx || echo "Cache empty (first run)"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -40,11 +37,11 @@ jobs:
           tags: |
             forgejo.xynogen.xyz/xynogen/9router:latest
             forgejo.xynogen.xyz/xynogen/9router:${{ github.sha }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          cache-from: type=local,src=/cache/buildx
+          cache-to: type=local,dest=/cache/buildx-new,mode=max
           provenance: false
 
-      - name: Move cache
+      - name: Rotate cache
         run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          rm -rf /cache/buildx
+          mv /cache/buildx-new /cache/buildx
