@@ -32,6 +32,21 @@ Pulling and merging upstream into the fork is **unreliable**:
 - Cache strategy: `actions/cache@v4` keyed on `package-lock.json` + `Dockerfile` hash
 - Runtime user inside container: `node` (uid 1000), entrypoint drops privileges via `gosu`
 
+## Current CI behavior (this repo)
+
+Workflow: `.forgejo/workflows/docker-build.yml`
+
+- **Trigger**: tag push only (`on: push: tags: ["*"]`). `master` push does **not** build.
+- **Image tag**: derived from git tag with leading `v` stripped (e.g. tag `v3.7.0` → image `:3.7.0`).
+- **Tags pushed per build**: `forgejo.xynogen.xyz/xynogen/9router:<version>` and `:latest`.
+- **No `package.json` read in CI** — the git tag name is the single source of truth for the image version. Agents must align `package.json` version and tag name before pushing.
+- **Registry**: `forgejo.xynogen.xyz/xynogen/9router` (auth via `secrets.REGISTRY_TOKEN`).
+
+Practical release sequence (this repo):
+1. Bump `version` in `package.json` (commit if changed).
+2. `git tag v<version>` matching the new `package.json` version.
+3. `git push origin v<version>` → triggers CI → publishes `:<version>` + `:latest`.
+
 ## Tag-based release CI (when applicable)
 
 Some repos in this owner's ecosystem use **tag-triggered release workflows**. Pattern to recognize and respect:
