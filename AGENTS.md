@@ -21,7 +21,7 @@ Pulling and merging upstream into the fork is **unreliable**:
 ### When helping with a post-merge issue
 
 1. Always check `git log --oneline -20` first to see whether a merge commit is the source of the breakage.
-2. Treat anything under `.forgejo/`, `Dockerfile`, `.dockerignore`, and lockfile changes as **owner's local patches** — preserve them unless explicitly told otherwise.
+2. Treat anything under `.forgejo/`, `Dockerfile`, `.dockerignore`, and lockfile changes as **owner's local patches** — preserve them unless explicitly told otherwise. For CI/CD conflicts, prefer `origin`'s Forgejo workflow.
 3. If lockfile is suspect, prefer regenerating on the owner's host (Linux glibc) over trusting upstream's version.
 4. The build runs in Docker on a self-hosted Forgejo Actions runner (Ubuntu host, DinD). Local environment differs.
 
