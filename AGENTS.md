@@ -31,3 +31,52 @@ Pulling and merging upstream into the fork is **unreliable**:
 - Build engine: Next.js SWC (the `--webpack` flag was removed)
 - Cache strategy: `actions/cache@v4` keyed on `package-lock.json` + `Dockerfile` hash
 - Runtime user inside container: `node` (uid 1000), entrypoint drops privileges via `gosu`
+
+## Tag-based release CI (when applicable)
+
+Some repos in this owner's ecosystem use **tag-triggered release workflows**. Pattern to recognize and respect:
+
+### Trigger model
+- Workflow runs on **tag push only** (`on: push: tags: ["*"]`). Branch pushes — including `master`/`main` — do **not** trigger release builds.
+- Pushing a tag = publishing a release. There are no "throwaway" tags; every pushed tag creates/updates a Forgejo Release with artifacts attached.
+
+### Version derivation (priority order)
+1. `workflow_dispatch.inputs.version` if manually dispatched with override
+2. Tag name with leading `v` stripped (e.g. `v3.7` → `3.7`, `v3.7-rc1` → `3.7-rc1`)
+3. Fallback for non-tag manual dispatch: project metadata + `+git<shortsha>` suffix
+
+### Tag naming conventions
+- Releases: `vX.Y` or `vX.Y.Z` → cleanest version strings
+- Pre-releases: `vX.Y-rcN`, `vX.Y-beta1`
+- Anything else (e.g. `v3.7-test`) still triggers a full build + release publish
+
+### Agent-driven release flow
+
+When the user asks to "run the CI", "publish a release", "tag a release", or similar:
+
+1. Read the app version from project metadata (e.g. `version` field in `package.json`, or equivalent for non-JS projects).
+2. Check whether a git tag matching that version already exists locally and on `origin`:
+   ```
+   git tag -l "v<version>"
+   git ls-remote --tags origin "v<version>"
+   ```
+3. If the tag already exists → **stop and ask the user** before doing anything. Options to surface: bump the version in metadata, delete the existing tag (destructive — needs confirmation), or pick a different tag name.
+4. If the tag does not exist → confirm the version + tag name with the user, then:
+   ```
+   git tag v<version>
+   git push origin v<version>
+   ```
+5. Pushing the tag triggers the workflow. Do not attempt to manually invoke jobs unless the user explicitly asks.
+
+Never tag/push without user confirmation — tag pushes are irreversible-by-default (they publish a release).
+
+### Cleaning up bad tags
+```
+git push origin :refs/tags/<tag>   # delete remote
+git tag -d <tag>                    # delete local
+```
+The Forgejo Release created by the tag must be deleted separately via UI/API.
+
+### What agents should NOT assume
+- Pushing to `master`/`main` triggers a release — it doesn't; only tags do
+- State carries between workflow runs — it doesn't; jobs run in fresh containers
