@@ -50,7 +50,6 @@ source/*
 docs/*
 !docs/ARCHITECTURE.md
 test/*
-bin/*
 open-sse/test/*
 RM.vn.md
 RM.md
@@ -59,7 +58,6 @@ PUBLIC.md
 Thanks.md
 PUBLIC.en.md
 PR/*
-package-lock.json
 
 
 #Ignore vscode AI rules

@@ -1,8 +1,7 @@
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
-const monorepoRoot = resolve(projectRoot, "..");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -13,7 +12,7 @@ const nextConfig = {
   },
   outputFileTracingRoot: projectRoot,
   outputFileTracingExcludes: {
-    "*": ["./app/gitbook/**/*", "./gitbook/**/*"]
+    "*": ["./gitbook/**/*"]
   },
   images: {
     unoptimized: true
@@ -29,7 +28,7 @@ const nextConfig = {
       };
     }
     // Exclude logs, .next, gitbook subapp from watcher
-    config.watchOptions = { ...config.watchOptions, ignored: /[\\/](logs|\.next|gitbook)[\\/]/ };
+    config.watchOptions = { ...config.watchOptions, ignored: /[\\/](logs|\.next|gitbook|cli)[\\/]/ };
     return config;
   },
   async rewrites() {
