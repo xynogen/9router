@@ -255,10 +255,19 @@ function killTray() {
   if (instance) {
     try {
       if (wasWin) instance.kill();
-      // systray2.kill(true) defaults to calling process.exit(0) which aborts
-      // the rest of cleanup (server SIGKILL, MITM/tunnel cleanup). Pass false
-      // so callers stay in control of process exit.
-      else instance.kill(false);
+      else {
+        // systray2.kill(false) closes IPC but leaves the Go tray binary
+        // subprocess running, which keeps an orphan NSStatusItem on macOS
+        // and blocks a freshly spawned tray (e.g. hide-to-tray bgProcess)
+        // from registering. Kill the child PID directly first.
+        try {
+          const proc = instance._process || (typeof instance.process === "function" ? instance.process() : null);
+          if (proc && proc.pid) {
+            process.kill(proc.pid, "SIGKILL");
+          }
+        } catch (e) {}
+        instance.kill(false);
+      }
     } catch (e) {}
   }
 }

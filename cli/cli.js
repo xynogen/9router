@@ -685,6 +685,11 @@ function startServer(latestVersion) {
           const { clearScreen } = require("./src/cli/utils/display");
           clearScreen();
 
+          // Kill current tray FIRST so the new bgProcess can register a fresh
+          // NSStatusItem on macOS without conflicting with the orphan binary
+          try { require("./src/cli/tray/tray").killTray(); } catch (e) { }
+          await new Promise(r => setTimeout(r, 300));
+
           // Enable auto startup on OS boot
           try {
             const { enableAutoStart } = require("./src/cli/tray/autostart");
