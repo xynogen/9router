@@ -66,7 +66,7 @@ When the user asks to "run the CI", "publish a release", "tag a release", or sim
    git tag v<version>
    git push origin v<version>
    ```
-5. Pushing the tag triggers the workflow. Do not attempt to manually invoke jobs unless the user explicitly asks.
+5. Pushing the tag triggers the workflow. CI consumes the tag name directly (strips leading `v`) and uses it as the Docker image tag — no version is read from `package.json` at build time. Do not attempt to manually invoke jobs unless the user explicitly asks.
 
 Never tag/push without user confirmation — tag pushes are irreversible-by-default (they publish a release).
 
