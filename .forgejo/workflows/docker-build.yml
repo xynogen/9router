@@ -10,7 +10,7 @@ jobs:
 
       - name: Derive version from tag
         id: ver
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -37,4 +37,12 @@ jobs:
           cache-to: type=local,dest=/tmp/buildx-cache-new,mode=min
           provenance: false
 
-      - run: rm -rf /tmp/buildx-cache && mv /tmp/buildx-cache-new /tmp/buildx-cache
+      - name: Cleanup buildx cache
+        if: always()
+        run: |
+          rm -rf /tmp/buildx-cache
+          if [ -d /tmp/buildx-cache-new ]; then
+            mv /tmp/buildx-cache-new /tmp/buildx-cache
+          else
+            mkdir -p /tmp/buildx-cache
+          fi
