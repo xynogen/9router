@@ -61,8 +61,9 @@ Some repos in this owner's ecosystem use **tag-triggered release workflows**. Pa
 3. Fallback for non-tag manual dispatch: project metadata + `+git<shortsha>` suffix
 
 ### Tag naming conventions
-- Releases: `X.Y` or `X.Y.Z` → cleanest version strings
+- Releases: `X.Y` or `X.Y.Z` → cleanest version strings, **must match `package.json` `version`**
 - Pre-releases: `X.Y-rcN`, `X.Y-beta1`
+- **CI/build iteration suffixes**: `X.Y.Z-a`, `X.Y.Z-b`, `X.Y.Z-c`, … → used when fixing CI/CD or build infra **without** changing app code. These tags intentionally **do not match** `package.json` and **must not** trigger a `package.json` version bump. Increment the letter (`-a` → `-b` → `-c` → `-d` …) for each re-run on the same app version.
 - Anything else (e.g. `3.7-test`) still triggers a full build + release publish
 
 ### Agent-driven release flow
