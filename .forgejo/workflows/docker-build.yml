@@ -26,8 +26,8 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: /tmp/buildx-cache
-          key: buildx-${{ hashFiles('package-lock.json', 'package.json', 'Dockerfile', 'next.config.mjs', 'src/**', 'public/**') }}
-          restore-keys: buildx-
+          key: buildx-v2-${{ hashFiles('package-lock.json', 'package.json', 'Dockerfile', 'next.config.mjs', 'src/**', 'public/**') }}
+          restore-keys: buildx-v2-
 
       - uses: docker/build-push-action@v6
         with:
