@@ -28,8 +28,9 @@ Pulling and merging upstream into the fork is **unreliable**:
 ## Build environment summary
 
 - Build target: `node:22-slim` (Debian) — switched from Alpine due to musl/native module pain
-- Build engine: Next.js SWC (the `--webpack` flag was removed)
-- Cache strategy: `actions/cache@v4` keyed on `package-lock.json` + `Dockerfile` hash
+- Build engine: **Next.js + `--webpack` flag** (upstream uses this; removing it makes Next 16 default to Turbopack, which produces broken CSS chunks w/ Tailwind v4). Keep `--webpack` in every `next build`/`next dev` script.
+- Build inputs: upstream does **not commit `package-lock.json`** and uses `npm install` (no lockfile) in Docker. Our fork mirrors this — do not introduce `npm ci` w/ lockfile unless prepared to keep the lockfile in perfect sync w/ upstream's `package.json` post every merge.
+- Cache: removed. Builds run with `no-cache: true` so stale layers can't poison output.
 - Runtime user inside container: `node` (uid 1000), entrypoint drops privileges via `gosu`
 
 ## Current CI behavior (this repo)

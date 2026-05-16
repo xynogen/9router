@@ -60,6 +60,7 @@ PUBLIC.md
 Thanks.md
 PUBLIC.en.md
 PR/*
+package-lock.json
 
 
 #Ignore vscode AI rules

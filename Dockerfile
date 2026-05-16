@@ -10,9 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
 
-COPY package.json package-lock.json ./
+# Match upstream build strategy: no lockfile in builder, resolve fresh each build.
+COPY package.json ./
 RUN --mount=type=cache,target=/root/.npm \
-  npm ci --prefer-offline --no-audit --include=optional
+  npm install --no-audit
 
 COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
