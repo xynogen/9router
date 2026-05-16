@@ -37,15 +37,15 @@ Pulling and merging upstream into the fork is **unreliable**:
 Workflow: `.forgejo/workflows/docker-build.yml`
 
 - **Trigger**: tag push only (`on: push: tags: ["*"]`). `master` push does **not** build.
-- **Image tag**: derived from git tag with leading `v` stripped (e.g. tag `v3.7.0` → image `:3.7.0`).
+- **Image tag**: derived directly from git tag name (no prefix stripping expected).
 - **Tags pushed per build**: `forgejo.xynogen.xyz/xynogen/9router:<version>` and `:latest`.
 - **No `package.json` read in CI** — the git tag name is the single source of truth for the image version. Agents must align `package.json` version and tag name before pushing.
 - **Registry**: `forgejo.xynogen.xyz/xynogen/9router` (auth via `secrets.REGISTRY_TOKEN`).
 
 Practical release sequence (this repo):
 1. Bump `version` in `package.json` (commit if changed).
-2. `git tag v<version>` matching the new `package.json` version.
-3. `git push origin v<version>` → triggers CI → publishes `:<version>` + `:latest`.
+2. `git tag <version>` matching the new `package.json` version.
+3. `git push origin <version>` → triggers CI → publishes `:<version>` + `:latest`.
 
 ## Tag-based release CI (when applicable)
 
@@ -57,13 +57,13 @@ Some repos in this owner's ecosystem use **tag-triggered release workflows**. Pa
 
 ### Version derivation (priority order)
 1. `workflow_dispatch.inputs.version` if manually dispatched with override
-2. Tag name with leading `v` stripped (e.g. `v3.7` → `3.7`, `v3.7-rc1` → `3.7-rc1`)
+2. Tag name as-is (e.g. `3.7`, `3.7-rc1`)
 3. Fallback for non-tag manual dispatch: project metadata + `+git<shortsha>` suffix
 
 ### Tag naming conventions
-- Releases: `vX.Y` or `vX.Y.Z` → cleanest version strings
-- Pre-releases: `vX.Y-rcN`, `vX.Y-beta1`
-- Anything else (e.g. `v3.7-test`) still triggers a full build + release publish
+- Releases: `X.Y` or `X.Y.Z` → cleanest version strings
+- Pre-releases: `X.Y-rcN`, `X.Y-beta1`
+- Anything else (e.g. `3.7-test`) still triggers a full build + release publish
 
 ### Agent-driven release flow
 
@@ -72,16 +72,16 @@ When the user asks to "run the CI", "publish a release", "tag a release", or sim
 1. Read the app version from project metadata (e.g. `version` field in `package.json`, or equivalent for non-JS projects).
 2. Check whether a git tag matching that version already exists locally and on `origin`:
    ```
-   git tag -l "v<version>"
-   git ls-remote --tags origin "v<version>"
+   git tag -l "<version>"
+   git ls-remote --tags origin "<version>"
    ```
 3. If the tag already exists → **stop and ask the user** before doing anything. Options to surface: bump the version in metadata, delete the existing tag (destructive — needs confirmation), or pick a different tag name.
 4. If the tag does not exist → confirm the version + tag name with the user, then:
    ```
-   git tag v<version>
-   git push origin v<version>
+   git tag <version>
+   git push origin <version>
    ```
-5. Pushing the tag triggers the workflow. CI consumes the tag name directly (strips leading `v`) and uses it as the Docker image tag — no version is read from `package.json` at build time. Do not attempt to manually invoke jobs unless the user explicitly asks.
+5. Pushing the tag triggers the workflow. CI consumes the tag name directly and uses it as the Docker image tag — no version is read from `package.json` at build time. Do not attempt to manually invoke jobs unless the user explicitly asks.
 
 Never tag/push without user confirmation — tag pushes are irreversible-by-default (they publish a release).
 
