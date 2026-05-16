@@ -13,6 +13,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME:-${FORGEJO_REF_NAME:-${CI_COMMIT_TAG}}}"
           [ -n "$VERSION" ] || { echo "No tag ref found"; exit 1; }
+          echo "Derived version: $VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
@@ -23,12 +24,6 @@ jobs:
           username: xynogen
           password: ${{ secrets.REGISTRY_TOKEN }}
 
-      - uses: actions/cache@v4
-        with:
-          path: /tmp/buildx-cache
-          key: buildx-v2-${{ hashFiles('package-lock.json', 'package.json', 'Dockerfile', 'next.config.mjs', 'src/**', 'public/**') }}
-          restore-keys: buildx-v2-
-
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -36,16 +31,5 @@ jobs:
           tags: |
             forgejo.xynogen.xyz/xynogen/9router:latest
             forgejo.xynogen.xyz/xynogen/9router:${{ steps.ver.outputs.version }}
-          cache-from: type=local,src=/tmp/buildx-cache
-          cache-to: type=local,dest=/tmp/buildx-cache-new,mode=min
           provenance: false
-
-      - name: Cleanup buildx cache
-        if: always()
-        run: |
-          rm -rf /tmp/buildx-cache
-          if [ -d /tmp/buildx-cache-new ]; then
-            mv /tmp/buildx-cache-new /tmp/buildx-cache
-          else
-            mkdir -p /tmp/buildx-cache
-          fi
+          no-cache: true
