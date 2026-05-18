@@ -1,5 +1,7 @@
 // All intercepted domains + URL patterns per tool
 
+const IS_DEV = process.env.NODE_ENV === "development";
+
 const TARGET_HOSTS = [
   "daily-cloudcode-pa.googleapis.com",
   "cloudcode-pa.googleapis.com",
@@ -20,6 +22,19 @@ const MODEL_SYNONYMS = {
   antigravity: { "gemini-default": "gemini-3-flash" },
 };
 
+// Pattern fallback: rawModel regex → canonical alias key (when exact + prefix match fail)
+// Order matters: more specific patterns first. Catches AG renamed variants (e.g. gemini-pro-agent)
+const MODEL_PATTERNS = {
+  antigravity: [
+    { match: /flash/i,                   alias: "gemini-3-flash" },
+    { match: /pro.*low|low.*pro/i,       alias: "gemini-3.1-pro-low" },
+    { match: /gemini.*pro|pro.*gemini/i, alias: "gemini-3.1-pro-high" },
+    { match: /opus/i,                    alias: "claude-opus-4-6-thinking" },
+    { match: /sonnet|claude/i,           alias: "claude-sonnet-4-6" },
+    { match: /gpt.*oss|oss/i,            alias: "gpt-oss-120b-medium" },
+  ],
+};
+
 // URL substrings whose request/response should NOT be dumped to file (telemetry, polling, empty)
 const LOG_BLACKLIST_URL_PARTS = [
   "recordCodeAssistMetrics",
@@ -38,4 +53,4 @@ function getToolForHost(host) {
   return null;
 }
 
-module.exports = { TARGET_HOSTS, URL_PATTERNS, MODEL_SYNONYMS, LOG_BLACKLIST_URL_PARTS, getToolForHost };
+module.exports = { IS_DEV, TARGET_HOSTS, URL_PATTERNS, MODEL_SYNONYMS, MODEL_PATTERNS, LOG_BLACKLIST_URL_PARTS, getToolForHost };

@@ -251,6 +251,13 @@ export async function POST(request) {
           isValid = openaiRes.ok;
           break;
 
+        case "vercel-ai-gateway":
+          const vercelAiGatewayRes = await fetch("https://ai-gateway.vercel.sh/v1/models", {
+            headers: { "Authorization": `Bearer ${apiKey}` },
+          });
+          isValid = vercelAiGatewayRes.ok;
+          break;
+
         case "anthropic":
           const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",

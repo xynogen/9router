@@ -1,3 +1,16 @@
+# v0.4.52 (2026-05-17)
+
+## Features
+- Add Vercel AI Gateway provider support (#1183)
+- rtk: Kiro format tool result compression — handle conversationState.history & currentMessage, preserve error results, ~13.6% savings (#1194)
+
+## Fixes
+- openclaw: normalize agent.model object form `{primary, fallbacks}` before .startsWith → fix TypeError & 'not configured' status (#1216)
+- Usage Details pagination: stay inside mobile viewport <640px (#1218)
+- Fix test model error
+- Fix MIMO provider in Codex
+- Disable log file creation when using MITM AG
+
 # v0.4.50 (2026-05-16)
 
 ## Fixes

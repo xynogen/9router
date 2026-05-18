@@ -1,6 +1,9 @@
 const http = require("http");
 const https = require("https");
 const crypto = require("crypto");
+const fs = require("node:fs");
+const path = require("node:path");
+const os = require("node:os");
 const { machineIdSync } = require("node-machine-id");
 
 // Default configuration
@@ -12,18 +15,34 @@ const DEFAULT_CONFIG = {
 
 const CLI_TOKEN_HEADER = "x-9r-cli-token";
 const CLI_TOKEN_SALT = "9r-cli-auth";
+const APP_NAME = "9router";
+
+function getDataDir() {
+  if (process.env.DATA_DIR) return process.env.DATA_DIR;
+  if (process.platform === "win32") {
+    return path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), APP_NAME);
+  }
+  return path.join(os.homedir(), `.${APP_NAME}`);
+}
+
+const MACHINE_ID_FILE = path.join(getDataDir(), "machine-id");
 
 let config = { ...DEFAULT_CONFIG };
 let cachedCliToken = null;
 
+// Read raw machineId from shared file (written by server) → guarantees token match
+function loadRawMachineId() {
+  try {
+    const raw = fs.readFileSync(MACHINE_ID_FILE, "utf8").trim();
+    if (raw) return raw;
+  } catch {}
+  try { return machineIdSync(); } catch { return ""; }
+}
+
 function getCliToken() {
   if (cachedCliToken !== null) return cachedCliToken;
-  try {
-    const mid = machineIdSync();
-    cachedCliToken = crypto.createHash("sha256").update(mid + CLI_TOKEN_SALT).digest("hex").substring(0, 16);
-  } catch {
-    cachedCliToken = "";
-  }
+  const raw = loadRawMachineId();
+  cachedCliToken = raw ? crypto.createHash("sha256").update(raw + CLI_TOKEN_SALT).digest("hex").substring(0, 16) : "";
   return cachedCliToken;
 }
 
