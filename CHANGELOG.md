@@ -1,3 +1,38 @@
+# v0.4.59 (2026-05-21)
+
+## Fixes
+- OAuth: fix login flow on Windows
+
+# v0.4.58 (2026-05-21)
+
+## Features
+- xAI Grok provider (OAuth, API key, image)
+- Provider limits: paginated accounts with page size controls
+
+## Fixes
+- Tailscale: fix connection status on Windows (#1300)
+- Tunnel: fix false "checking" when tunnel URL is reachable
+- Stream: fix pipe errors on client disconnect/abort
+
+# v0.4.55 (2026-05-18)
+
+## Features
+- Xiaomi MiMo Token Plan: region selector (Singapore / China / Europe) — keys are cluster-specific
+- Antigravity: risk confirmation dialog before first connection
+- Gemini CLI: surface upstream retry delay on 429 errors
+
+## Fixes
+- MITM: cannot kill process on macOS under sudo (lsof not found in PATH)
+- Stream: false-positive stall timeout on Claude reasoning / Kiro responses
+- Tunnel: cannot re-enable after disable (stuck state)
+- Tunnel: cloudflared error messages now include log tail for easier debugging
+- Language switcher: applies selected locale immediately on close (#1234)
+- Antigravity OAuth: metadata now matches the official client
+
+## Improvements
+- Gemini CLI: bump engine to 0.34.0
+- Re-hide `qwen` (OAuth EOL) and `iflow` (not ready) providers
+
 # v0.4.52 (2026-05-17)
 
 ## Features
