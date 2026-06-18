@@ -75,6 +75,7 @@ gitbook/README.md
 
 # Pix Agent
 .ai/
+.pi/
 .pi-lens/
 
 # Refactor backup reference (do not bundle/lint)
