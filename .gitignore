@@ -76,3 +76,6 @@ gitbook/README.md
 # Pix Agent
 .ai/
 .pi-lens/
+
+# Refactor backup reference (do not bundle/lint)
+open-sse.old/
