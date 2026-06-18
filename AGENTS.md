@@ -38,7 +38,8 @@ Pulling and merging upstream into the fork is **unreliable**:
 Workflow: `.forgejo/workflows/docker-build.yml`
 
 - **Trigger**: tag push only (`on: push: tags: ["*"]`). `master` push does **not** build.
-- **Image tag**: derived directly from git tag name (no prefix stripping expected).
+- **Image tag**: derived directly from git tag name (no prefix stripping expected). CI uses `GITHUB_REF_NAME` verbatim.
+- **Tag format**: **bare, no `v` prefix** (e.g. `0.5.4`, not `v0.5.4`) — tag must equal `package.json` `version` exactly so the image tag matches the version string. Ignore legacy `v`-prefixed tags in history; do not follow that pattern. Do **not** rewrite the CI to strip `v` — fix the tag instead.
 - **Tags pushed per build**: `forgejo.xynogen.xyz/xynogen/9router:<version>` and `:latest`.
 - **No `package.json` read in CI** — the git tag name is the single source of truth for the image version. Agents must align `package.json` version and tag name before pushing.
 - **Registry**: `forgejo.xynogen.xyz/xynogen/9router` (auth via `secrets.REGISTRY_TOKEN`).
