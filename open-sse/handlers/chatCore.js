@@ -70,7 +70,22 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   const clientRequestedStreaming = body.stream === true || sourceFormat === FORMATS.ANTIGRAVITY || sourceFormat === FORMATS.GEMINI || sourceFormat === FORMATS.GEMINI_CLI;
   const providerRequiresStreaming = PROVIDERS[provider]?.forceStream === true;
-  let stream = providerRequiresStreaming ? true : (body.stream !== false);
+  // Stream default differs by API format:
+  //   - Chat Completions (/v1/chat/completions): 9router defaults to streaming (stream-first architecture)
+  //   - Responses API (/v1/responses): defaults to non-streaming per OpenAI spec.
+  //     Clients like DBeaver expect JSON when stream is omitted; they must explicitly send
+  //     stream:true to get SSE. Without this, omitting "stream" returns SSE events which
+  //     GSON/JSON parsers choke on ("Expected BEGIN_OBJECT but was STRING").
+  //   - providerRequiresStreaming always wins (forceStream providers). The handleForcedSSEToJson
+  //     path converts the SSE response back to JSON for the client.
+  //
+  // Safety note: Codex CLI also uses /v1/responses (sourceFormat=openai-responses) but is
+  // unaffected because it hardcodes stream:true in every request (codex-rs ResponsesApiRequest
+  // always calls stream_request → ResponseStream). Additionally, the codex provider itself
+  // has forceStream:true. Both facts independently prevent this default from breaking Codex.
+  // If a future Codex-compatible client omits stream, it will correctly get JSON per spec.
+  const responsesApiDefault = sourceFormat === FORMATS.OPENAI_RESPONSES && body.stream !== true;
+  let stream = providerRequiresStreaming ? true : (responsesApiDefault ? false : (body.stream !== false));
 
   // Image generation models require non-streaming (Google v1internal:generateContent)
   const modelType = getModelType(alias, model);
@@ -90,7 +105,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const acceptHeader = clientRawRequest?.headers?.accept || "";
   const clientPrefersJson = acceptHeader.includes("application/json");
   const clientPrefersSSE = acceptHeader.includes("text/event-stream");
-  if (clientPrefersJson && !clientPrefersSSE && body.stream !== true && !providerRequiresStreaming) {
+  // Don't override if Responses API already forced non-streaming
+  if (sourceFormat !== FORMATS.OPENAI_RESPONSES && clientPrefersJson && !clientPrefersSSE && body.stream !== true && !providerRequiresStreaming) {
     stream = false;
   }
 
@@ -313,7 +329,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const appendLog = (extra) => appendRequestLog({ model, provider, connectionId, ...extra }).catch(() => { });
   const trackDone = () => trackPendingRequest(model, provider, connectionId, false);
 
-  // Provider forced streaming but client wants JSON
+  // Provider forced streaming but client wants JSON.
+  // This also handles Responses API clients (DBeaver) hitting forceStream providers — they
+  // land here because clientRequestedStreaming is false (stream was omitted) and the
+  // responsesApiDefault keeps stream=true only due to providerRequiresStreaming winning.
+  // sseToJsonHandler.js:141 reconstitutes the Responses JSON shape for these clients.
   if (!clientRequestedStreaming && providerRequiresStreaming) {
     const result = await handleForcedSSEToJson({ ...sharedCtx, providerResponse, sourceFormat, trackDone, appendLog });
     if (result) { streamController.handleComplete(); return result; }
