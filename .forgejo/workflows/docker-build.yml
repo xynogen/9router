@@ -63,18 +63,49 @@ jobs:
           PACKAGE: 9router
           KEEP: 5
         run: |
-          # List all container versions for this package, sorted newest-first
+          # List all container versions for this package.
           # API: GET /api/v1/packages/{owner}?type=container&q={name}&limit=50
           RESP=$(curl -sf \
             -H "Authorization: token ${FORGEJO_TOKEN}" \
             "${FORGEJO_URL}/api/v1/packages/${OWNER}?type=container&q=${PACKAGE}&limit=50")
 
-          # Extract version strings sorted by created desc, skip "latest" (it's a moving tag)
-          VERSIONS=$(echo "$RESP" \
-            | jq -r 'sort_by(.created) | reverse | .[].version' \
-            | grep -v '^latest$')
+          # IMPORTANT: retain by the highest full SemVer, not by publish time or
+          # patch alone. Compare major, minor, patch, and prerelease identifiers,
+          # so 1.0.0 > 0.5.40 > 0.5.8 > 0.4.50. Keep the original spelling
+          # (including a legacy leading "v") because the API needs the exact tag.
+          VERSIONS=$(echo "$RESP" | jq -r --arg package "$PACKAGE" '
+            [
+              .[]
+              | select(.name == $package and .version != "latest")
+              | .version as $version
+              | ($version
+                  | split("+")[0]
+                  | try capture(
+                      "^v?(?<major>[0-9]+)\\.(?<minor>[0-9]+)\\.(?<patch>[0-9]+)(?:-(?<pre>[0-9A-Za-z.-]+))?$"
+                    ) catch null
+                ) as $semver
+              | select($semver != null)
+              | {
+                  version: $version,
+                  key: [
+                    ($semver.major | tonumber),
+                    ($semver.minor | tonumber),
+                    ($semver.patch | tonumber),
+                    (if $semver.pre == null then 1 else 0 end),
+                    (($semver.pre // "")
+                      | if . == "" then [] else
+                          split(".")
+                          | map(if test("^[0-9]+$") then tonumber else . end)
+                        end)
+                  ]
+                }
+            ]
+            | sort_by(.key)
+            | reverse
+            | .[].version
+          ')
 
-          TOTAL=$(echo "$VERSIONS" | grep -c .)
+          TOTAL=$(printf '%s\n' "$VERSIONS" | awk 'NF { count++ } END { print count + 0 }')
           echo "Found $TOTAL versioned entries, keeping ${KEEP}"
 
           if [ "$TOTAL" -le "$KEEP" ]; then
