@@ -1,7 +1,6 @@
 // Claude helper functions for translator
 import { DEFAULT_THINKING_CLAUDE_SIGNATURE } from "../../config/defaultThinkingSignature.js";
 import { ROLE, CLAUDE_BLOCK } from "../schema/index.js";
-import { adjustMaxTokens } from "./maxTokens.js";
 import { applyCloaking } from "../../utils/claudeCloaking.js";
 import { resolveSessionId } from "../../utils/sessionManager.js";
 import { isValidClaudeSignature } from "../../utils/claudeSignature.js";
@@ -108,12 +107,18 @@ function buildThinkingPlaceholder(provider) {
 // 1. thinking.type "adaptive" → unsupported on Haiku
 // 2. output_config.effort → unsupported on Haiku
 // 3. role "system" messages (mid-conversation-system beta) → only top-level system is allowed
-export function normalizeClaudePassthrough(body, model = "") {
+export function normalizeClaudePassthrough(body, model = "", provider = null) {
   if (!body || typeof body !== "object") return body;
 
   // 1. Downgrade adaptive thinking for models that don't support it
   if (body.thinking?.type === "adaptive" && ADAPTIVE_THINKING_UNSUPPORTED.test(model)) {
     body.thinking = { type: "enabled", budget_tokens: 10000 };
+  }
+
+  // FORK-PATCH(temp): revert when upstream merges PR #2295. Passthrough skips applyThinking,
+  // so request summarized display here too (blank thinking-only turns on Opus 4.7/4.8).
+  if (provider === "claude" && body.thinking?.type === "adaptive") {
+    body.thinking = { ...body.thinking, display: "summarized" };
   }
 
   // 2. Strip effort param for models that don't support it (keep other output_config fields)

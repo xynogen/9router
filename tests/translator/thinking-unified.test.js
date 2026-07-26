@@ -62,7 +62,7 @@ describe("applyThinking per provider format", () => {
     // thinking:{type:"adaptive"} is sent explicitly; output_config alone is not
     // enough (and Anthropic-compatible shims like Copilot default off even on
     // Sonnet 5). Both fields together are the documented adaptive shape.
-    expect(out.thinking).toEqual({ type: "adaptive" });
+    expect(out.thinking).toEqual({ type: "adaptive", display: "summarized" });
   });
   it("claude haiku → enabled+budget", () => {
     const out = apply("claude", "claude-haiku-4.5", { reasoning_effort: "high" }, "claude");

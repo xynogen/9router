@@ -14,6 +14,22 @@ describe("normalizeClaudePassthrough — haiku adaptive thinking (docs 11 §1)",
     expect(out.thinking).toEqual({ type: "adaptive" });
   });
 
+  // FORK-PATCH(temp): revert with PR #2295.
+  it("adds display:summarized for the real claude provider", () => {
+    const out = normalizeClaudePassthrough({ thinking: { type: "adaptive" } }, "claude-opus-4-8", "claude");
+    expect(out.thinking).toEqual({ type: "adaptive", display: "summarized" });
+  });
+
+  it("leaves adaptive thinking plain for other providers", () => {
+    const out = normalizeClaudePassthrough({ thinking: { type: "adaptive" } }, "claude-opus-4-8", "github");
+    expect(out.thinking).toEqual({ type: "adaptive" });
+  });
+
+  it("haiku downgrade wins over display:summarized", () => {
+    const out = normalizeClaudePassthrough({ thinking: { type: "adaptive" } }, "claude-haiku-4-5", "claude");
+    expect(out.thinking).toEqual({ type: "enabled", budget_tokens: 10000 });
+  });
+
   it("hoists mid-conversation system messages into top-level system", () => {
     const out = normalizeClaudePassthrough({
       messages: [

@@ -213,7 +213,7 @@ function stripAll(body) {
 }
 
 // Apply unified thinking config to body in the resolved provider-native format.
-function applyFormat(fmt, body, cfg, caps) {
+function applyFormat(fmt, body, cfg, caps, provider = null) {
   const none = cfg.mode === "none";
   const canDisable = caps.thinkingCanDisable !== false;
   // Model cannot disable thinking → clamp "none" to minimal effort instead.
@@ -234,7 +234,9 @@ function applyFormat(fmt, body, cfg, caps) {
       // ("thinking is off unless you explicitly set it"), and Anthropic-compatible
       // shims (e.g. GitHub Copilot /v1/messages) default thinking off even for
       // Sonnet 5. Send both fields — the documented adaptive-thinking shape.
-      body.thinking = { type: "adaptive" };
+      // FORK-PATCH(temp): revert when upstream merges PR #2295. display:"summarized" —
+      // Opus 4.7/4.8 default display:"omitted" → blank thinking-only turns. Real Anthropic only.
+      body.thinking = provider === "claude" ? { type: "adaptive", display: "summarized" } : { type: "adaptive" };
       const level = toLevel(eff);
       body.output_config = { effort: level === "xhigh" ? "high" : level };
       break;
@@ -330,6 +332,6 @@ export function applyThinking(targetFormat, model, body, provider = null, intent
 
   const fmt = resolveFormat(targetFormat, cleanModel, provider);
   stripAll(body);
-  applyFormat(fmt, body, cfg, caps);
+  applyFormat(fmt, body, cfg, caps, provider);
   return body;
 }
