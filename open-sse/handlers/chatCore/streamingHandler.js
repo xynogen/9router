@@ -37,6 +37,7 @@ function buildTransformStream({
 	userAgent,
 	reqLogger,
 	toolNameMap,
+	customToolNames,
 	model,
 	connectionId,
 	body,
@@ -67,6 +68,7 @@ function buildTransformStream({
 			body,
 			onStreamComplete,
 			apiKey,
+			customToolNames,
 		);
 	}
 
@@ -82,6 +84,7 @@ function buildTransformStream({
 			body,
 			onStreamComplete,
 			apiKey,
+			customToolNames,
 		);
 	}
 
@@ -117,6 +120,7 @@ export async function handleStreamingResponse({
 	onRequestSuccess,
 	reqLogger,
 	toolNameMap,
+	customToolNames,
 	streamController,
 	onStreamComplete,
 	streamDetailId,
@@ -199,6 +203,7 @@ export async function handleStreamingResponse({
 		userAgent,
 		reqLogger,
 		toolNameMap,
+		customToolNames,
 		model,
 		connectionId,
 		body,

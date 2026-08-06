@@ -48,9 +48,6 @@ export default {
         header: "Authorization",
         scheme: "bearer",
       },
-      hooks: [
-        "claudeOverlay",
-      ],
     },
     usage: {
       oauthUrl: "https://api.anthropic.com/api/oauth/usage",
