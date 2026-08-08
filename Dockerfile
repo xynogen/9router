@@ -7,7 +7,8 @@ FROM base AS builder
 
 # Build deps for native modules (better-sqlite3, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ \
+    python3 python3-pip make g++ \
+  && pip3 install --no-cache-dir --break-system-packages fonttools brotli \
   && rm -rf /var/lib/apt/lists/*
 
 # Match upstream build strategy: no lockfile in builder, resolve fresh each build.
@@ -31,8 +32,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATA_DIR=/app/data
 
 COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/static ./.next/static
+# public/fonts subset must be served at /fonts — standalone's public is minimal, add subset explicitly
+COPY --from=builder /app/public/fonts ./public/fonts
 COPY --from=builder /app/custom-server.js ./custom-server.js
 COPY --from=builder /app/open-sse ./open-sse
 # Next file tracing can omit sibling files; MITM runs server.js as a separate process.
@@ -49,7 +51,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gosu \
   && mkdir -p /app/data /app/data-home \
   && chown -R node:node /app/data /app/data-home \
   && ln -sf /app/data-home /root/.9router 2>/dev/null || true \
-  && printf '#!/bin/sh\nchown -R node:node /app/data /app/data-home 2>/dev/null\nexec gosu node "$@"\n' > /entrypoint.sh \
+  && printf '#!/bin/sh\n[ -z "$(ls -A /app/data 2>/dev/null)" ] || chown -R node:node /app/data 2>/dev/null\n[ -z "$(ls -A /app/data-home 2>/dev/null)" ] || chown -R node:node /app/data-home 2>/dev/null\nexec gosu node "$@"\n' > /entrypoint.sh \
   && chmod +x /entrypoint.sh
 
 EXPOSE 20128
