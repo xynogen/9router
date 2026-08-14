@@ -35,7 +35,7 @@ Pulling and merging upstream into the fork is **unreliable**:
 
 ## Fork divergence (local patches ahead of upstream)
 
-> Based on `HEAD = 0.5.50-c` ahead of upstream `v0.5.50`. Live check: `git log github/master..HEAD --oneline` — update this section after each upstream merge.
+> Based on `HEAD` merged with upstream `v0.5.55`. Live check: `git log github/master..HEAD --oneline` — update this section after each upstream merge.
 
 **What users actually notice:**
 
