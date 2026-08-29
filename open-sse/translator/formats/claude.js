@@ -7,6 +7,7 @@ import { isValidClaudeSignature } from "../../utils/claudeSignature.js";
 import { PROVIDERS } from "../../providers/index.js";
 import { getCapabilitiesForModel } from "../../providers/capabilities.js";
 import { DEFAULT_MAX_TOKENS } from "../../config/runtimeConfig.js";
+import { normalizeClaudeInputSchema } from "../../utils/claudeInputSchema.js";
 
 const CACHE_CONTROL_5M = { type: "ephemeral" };
 const CACHE_CONTROL_1H = { type: "ephemeral", ttl: "1h" };
@@ -487,14 +488,10 @@ export function prepareClaudeRequest(
 
     body.tools = body.tools.map((tool, i) => {
       const { cache_control, ...rest } = tool;
-      // Anthropic requires input_schema.type on custom tools; passthrough
-      // clients may omit it — default to "object" instead of a 400.
-      if (
-        rest.input_schema &&
-        typeof rest.input_schema === "object" &&
-        !rest.input_schema.type
-      ) {
-        rest.input_schema = { ...rest.input_schema, type: "object" };
+      // Anthropic requires input_schema.type on custom tools and rejects
+      // root-level oneOf/allOf/anyOf; passthrough clients may emit either.
+      if (rest.input_schema && typeof rest.input_schema === "object") {
+        rest.input_schema = normalizeClaudeInputSchema(rest.input_schema);
       }
       if (i === body.tools.length - 1) {
         return { ...rest, cache_control: { type: "ephemeral", ttl: "1h" } };

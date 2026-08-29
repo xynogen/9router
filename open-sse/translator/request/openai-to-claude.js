@@ -3,6 +3,7 @@ import { FORMATS } from "../formats.js";
 import { CLAUDE_SYSTEM_PROMPT } from "../../config/appConstants.js";
 import { adjustMaxTokens } from "../formats/maxTokens.js";
 import { safeParseJSON } from "../concerns/json.js";
+import { normalizeClaudeInputSchema } from "../../utils/claudeInputSchema.js";
 import { parseDataUri } from "../concerns/image.js";
 import { extractTextContent } from "../formats/gemini.js";
 import { ROLE, OPENAI_BLOCK, CLAUDE_BLOCK } from "../schema/index.js";
@@ -211,16 +212,16 @@ Respond ONLY with the JSON object, no other text.`);
       // Store mapping for response translation (prefixed → original)
       toolNameMap.set(toolName, originalName);
 
-      // Anthropic requires input_schema.type; some clients send parameters
-      // without it (e.g. { properties: {...} }) — default to "object".
-      const schema = toolData.parameters ||
-        toolData.input_schema || {
-          type: "object",
-          properties: {},
-          required: [],
-        };
-      if (schema && typeof schema === "object" && !schema.type)
-        schema.type = "object";
+      // Anthropic requires input_schema.type and rejects root-level
+      // oneOf/allOf/anyOf; normalize before forwarding.
+      const schema = normalizeClaudeInputSchema(
+        toolData.parameters ||
+          toolData.input_schema || {
+            type: "object",
+            properties: {},
+            required: [],
+          },
+      );
 
       result.tools.push({
         name: toolName,

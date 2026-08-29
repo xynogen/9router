@@ -69,6 +69,58 @@ describe("openai→claude: tools shape fidelity", () => {
     expect(out.tools[0]).not.toHaveProperty("type");
   });
 
+  it("root-level anyOf/oneOf/allOf are flattened (Anthropic 400: input_schema does not support oneOf/allOf/anyOf at the top level)", () => {
+    const out = openaiToClaudeRequest(
+      "claude-sonnet-4.5",
+      baseBody({
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "u",
+              parameters: {
+                oneOf: [
+                  { type: "string" },
+                  {
+                    type: "object",
+                    properties: { cmd: { type: "string" } },
+                    required: ["cmd"],
+                  },
+                ],
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "m",
+              parameters: {
+                allOf: [
+                  { properties: { a: { type: "string" } } },
+                  { required: ["a"] },
+                ],
+              },
+            },
+          },
+        ],
+      }),
+      false,
+    );
+
+    // object variant wins over string scalar
+    expect(out.tools[0].input_schema).toEqual({
+      type: "object",
+      properties: { cmd: { type: "string" } },
+      required: ["cmd"],
+    });
+    // allOf variants merge into root
+    expect(out.tools[1].input_schema).toEqual({
+      type: "object",
+      properties: { a: { type: "string" } },
+      required: ["a"],
+    });
+  });
+
   it("parameters/input_schema WITHOUT `type` get `type: 'object'` injected (Anthropic 400: input_schema.type Field required)", () => {
     const out = openaiToClaudeRequest(
       "claude-sonnet-4.5",
