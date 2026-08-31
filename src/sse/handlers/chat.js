@@ -295,7 +295,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       onPxpipeEvent: appendPxpipeEvent,
       providerThinking,
       // Detect source format by endpoint + body
-      sourceFormatOverride: requestPath ? detectFormatByEndpoint(requestPath, body) : null,
+      sourceFormatOverride: clientRawRequest?.endpoint ? detectFormatByEndpoint(clientRawRequest.endpoint, body) : null,
       onCredentialsRefreshed: async (newCreds) => {
         await updateProviderCredentials(credentials.connectionId, {
           ...newCreds,
