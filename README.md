@@ -1,7 +1,7 @@
 <div align="center">
   <img src="./images/9router.png?1" alt="9Router Dashboard" width="800"/>
   
-  # 9Router - FREE AI Router & Token Saver
+# 9Router - FREE AI Router & Token Saver
   
   **Never stop coding. Save 20-40% tokens with RTK + auto-fallback to FREE & cheap AI models.**
   
@@ -1254,7 +1254,7 @@ docker run -d \
   decolua/9router:latest
 ```
 
-→ Open http://localhost:20128
+→ Open <http://localhost:20128>
 
 **Build from source (dev):**
 
