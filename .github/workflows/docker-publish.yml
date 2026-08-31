@@ -3,6 +3,12 @@ name: Build and Publish Container
 on:
   push:
     tags: ["*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Image tag to publish"
+        required: true
+        type: string
 
 concurrency:
   group: container-publish
@@ -23,11 +29,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Derive version from tag
+      - name: Derive image tag
         id: ver
+        env:
+          VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
         run: |
-          VERSION="${GITHUB_REF_NAME}"
-          [ -n "$VERSION" ] || { echo "No tag ref found"; exit 1; }
+          [[ "$VERSION" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo "Invalid Docker tag: $VERSION"; exit 1; }
           echo "Derived version: $VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
