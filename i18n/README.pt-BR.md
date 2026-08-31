@@ -1491,9 +1491,6 @@ Obrigado a todos os colaboradores que ajudaram a tornar o 9Router melhor!
 
 ---
 
-## 📊 Gráfico de estrelas
-
-[![Gráfico de estrelas](https://starchart.cc/decolua/9router.svg?variant=adaptive)](https://starchart.cc/decolua/9router)
 
 ## 🔀 Forks
 

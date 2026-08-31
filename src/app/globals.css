@@ -3,7 +3,9 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ponytail: icon font is subset (120KB) with font-display:swap — no FOIT blocking */
+/* ponytail: icon font is subset (120KB) with font-display:swap; font-ready guard avoids ligature text flash */
+.material-symbols-outlined { opacity: 0; }
+.fonts-loaded .material-symbols-outlined { opacity: 1; transition: opacity .12s ease-out; }
 
 /* ============================================================
    9Router palette

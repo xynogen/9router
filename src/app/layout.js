@@ -40,6 +40,11 @@ export default function RootLayout({ children }) {
 					type="font/woff2"
 					crossOrigin="anonymous"
 				/>
+				<script
+					dangerouslySetInnerHTML={{
+						__html: `var d=document,r=d.documentElement,f=function(){r.classList.add('fonts-loaded')};if(d.fonts&&d.fonts.load){d.fonts.load('24px "Material Symbols Outlined"').then(f).catch(f);setTimeout(f,3000)}else{f()}`,
+					}}
+				/>
 			</head>
 			<body className={`${inter.variable} font-sans antialiased`}>
 				<ThemeProvider>

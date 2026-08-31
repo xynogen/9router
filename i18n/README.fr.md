@@ -1410,9 +1410,6 @@ Merci à tous les contributeurs qui ont contribué à améliorer 9Router !
 
 ---
 
-## 📊 Graphique d'étoiles
-
-[![Star Chart](https://starchart.cc/decolua/9router.svg?variant=adaptive)](https://starchart.cc/decolua/9router)
 
 ## 🔀 Forks
 

@@ -1410,9 +1410,6 @@ Authorization: Bearer tu-clave-api
 
 ---
 
-## 📊 Gráfico de estrellas
-
-[![Star Chart](https://starchart.cc/decolua/9router.svg?variant=adaptive)](https://starchart.cc/decolua/9router)
 
 ## 🔀 Forks
 

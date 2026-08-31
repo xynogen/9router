@@ -1180,9 +1180,6 @@ Authorization: Bearer your-api-key
 
 ---
 
-## 📊 スターチャート
-
-[![Star Chart](https://starchart.cc/decolua/9router.svg?variant=adaptive)](https://starchart.cc/decolua/9router)
 
 
 

@@ -1269,9 +1269,6 @@ Cảm ơn tất cả những người đã đóng góp giúp 9Router tốt hơn!
 
 ---
 
-## 📊 Star Chart
-
-[![ Chart](https://starchart.cc/decolua/9router.svg?variant=adaptive)](https://starchart.cc/decolua/9router)
 
 ### Cách Đóng góp
 

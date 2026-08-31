@@ -1280,9 +1280,6 @@ Authorization: Bearer your-api-key
 
 ---
 
-## 📊 Star 图表
-
-[![Star Chart](https://starchart.cc/decolua/9router.svg?variant=adaptive)](https://starchart.cc/decolua/9router)
 
 
 
