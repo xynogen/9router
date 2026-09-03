@@ -30,28 +30,39 @@ export const viewport = {
 };
 
 export default function RootLayout({ children }) {
-	return (
-		<html lang="en" suppressHydrationWarning>
-			<head>
-				<link
-					rel="preload"
-					href="/fonts/material-symbols-outlined.subset.woff2"
-					as="font"
-					type="font/woff2"
-					crossOrigin="anonymous"
-				/>
-				<script
-					dangerouslySetInnerHTML={{
-						__html: `var d=document,r=d.documentElement,f=function(){r.classList.add('fonts-loaded')};if(d.fonts&&d.fonts.load){d.fonts.load('24px "Material Symbols Outlined"').then(f).catch(f);setTimeout(f,3000)}else{f()}`,
-					}}
-				/>
-			</head>
-			<body className={`${inter.variable} font-sans antialiased`}>
-				<ThemeProvider>
-					<RuntimeI18nProvider>{children}</RuntimeI18nProvider>
-				</ThemeProvider>
-				<GoogleAnalytics gaId={"G-LC959F603F"} />
-			</body>
-		</html>
-	);
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* FORK: preload subset icon font (faster first paint, font-display swap) */}
+        <link
+          rel="preload"
+          href="/fonts/material-symbols-outlined.subset.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        {/* Apply persisted theme before first paint so a reload does not flash the
+            default (light) theme before the client store hydrates. Mirrors the
+            zustand-persist "theme" key and the `dark` class applyTheme() sets. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=localStorage.getItem('theme');var t=s?(JSON.parse(s).state||{}).theme:'system';t=t||'system';var m=window.matchMedia('(prefers-color-scheme: dark)').matches;if(t==='dark'||(t==='system'&&m)){document.documentElement.classList.add('dark')}}catch(e){}})();`,
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `var d=document,r=d.documentElement,f=function(){r.classList.add('fonts-loaded')};if(d.fonts&&d.fonts.load){d.fonts.load('24px "Material Symbols Outlined"').then(f).catch(f);setTimeout(f,3000)}else{f()}`,
+          }}
+        />
+      </head>
+      <body className={`${inter.variable} font-sans antialiased`}>
+        <ThemeProvider>
+          <RuntimeI18nProvider>
+            {children}
+          </RuntimeI18nProvider>
+        </ThemeProvider>
+        <GoogleAnalytics gaId={"G-LC959F603F"} />
+      </body>
+    </html>
+  );
 }

@@ -149,7 +149,7 @@ export class AntigravityExecutor extends BaseExecutor {
 
   // sessionId comes from transformRequest output; base.execute runs transformRequest before
   // buildHeaders, so we read it from instance state cached there (fallback: explicit arg).
-  buildHeaders(credentials, stream = true, sessionId = null) {
+  buildHeaders(credentials, _stream = true, _sessionId = null) {
     // Official-client identity headers. Absence on the inference path is a known 403
     // SERVICE_DISABLED trigger (upstream #1138). x-goog-user-project is deliberately NOT
     // sent for content requests — the reference client omits it (#3074). Project stays in body.
@@ -512,6 +512,16 @@ export class AntigravityExecutor extends BaseExecutor {
       errorJson = bodyText ? JSON.parse(bodyText) : null;
     } catch {
       // ignore parse errors → fall through to status/message based retry
+    }
+
+    // Always surface the raw upstream reason for 4xx (esp. 403). An EMPTY-body 403 is
+    // the TLS/JA3 fingerprint rejection (#1138); a body with SERVICE_DISABLED / geo /
+    // PERMISSION_DENIED points at header/account/region instead. This is the only way
+    // to tell them apart in production, where dbg() is silenced.
+    if (response.status >= 400 && response.status < 500) {
+      console.warn(
+        `[AG-UPSTREAM] status=${response.status} bodyLen=${bodyText.length} body=${bodyText.slice(0, 800) || "(empty)"}`,
+      );
     }
 
     const errorMessage = this.extractErrorMessage(errorJson, bodyText);
