@@ -3,7 +3,7 @@ export default {
 	priority: 30,
 	alias: "meta",
 	display: {
-		name: "Meta (Muse Spark)",
+		name: "Meta",
 		icon: "auto_awesome",
 		color: "#0064FF",
 		textIcon: "MT",
