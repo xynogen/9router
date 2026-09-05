@@ -1,5 +1,6 @@
 export const STATUS_FILTER_OPTIONS = [
   { value: "all", label: "All" },
+  { value: "connected", label: "Connected" },
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
   { value: "none", label: "No connection" },
@@ -15,5 +16,8 @@ export function getConnectionStatus(stats, isNoAuth = false) {
 
 export function matchesStatusFilter(statusFilter, stats, isNoAuth = false) {
   if (statusFilter === "all") return true;
-  return getConnectionStatus(stats, isNoAuth) === statusFilter;
+  const status = getConnectionStatus(stats, isNoAuth);
+  // "connected" = anything you added, active or inactive (hides "none").
+  if (statusFilter === "connected") return status !== "none";
+  return status === statusFilter;
 }

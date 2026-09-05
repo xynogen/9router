@@ -83,8 +83,12 @@ export default function ProfilePage() {
 
   const [isRemoteHost, setIsRemoteHost] = useState(false);
   useEffect(() => {
-    if (typeof window !== "undefined")
+    // Detect host after mount: a lazy useState initializer would read window
+    // client-side (true) while SSR rendered false, causing a hydration mismatch.
+    if (typeof window !== "undefined") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsRemoteHost(!["localhost", "127.0.0.1", "::1"].includes(window.location.hostname));
+    }
   }, []);
 
   useEffect(() => {
