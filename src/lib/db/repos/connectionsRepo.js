@@ -3,12 +3,50 @@ import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 
 const OPTIONAL_FIELDS = [
-  "displayName", "email", "globalPriority", "defaultModel",
-  "accessToken", "refreshToken", "expiresAt", "tokenType",
-  "scope", "projectId", "apiKey", "testStatus",
-  "lastTested", "lastError", "lastErrorAt", "rateLimitedUntil", "expiresIn", "errorCode",
-  "consecutiveUseCount", "idToken", "lastRefreshAt",
+  "displayName",
+  "email",
+  "globalPriority",
+  "defaultModel",
+  "accessToken",
+  "refreshToken",
+  "expiresAt",
+  "tokenType",
+  "scope",
+  "projectId",
+  "apiKey",
+  "testStatus",
+  "lastTested",
+  "lastError",
+  "lastErrorAt",
+  "rateLimitedUntil",
+  "expiresIn",
+  "errorCode",
+  "consecutiveUseCount",
+  "idToken",
+  "lastRefreshAt",
 ];
+
+const MODEL_LOCK_PREFIX = "modelLock_";
+
+function resetHealthStateOnActivation(existing, patch) {
+  if (patch?.testStatus !== "active") return patch;
+
+  const normalized = {
+    ...patch,
+    testStatus: "active",
+    lastError: Object.hasOwn(patch, "lastError") ? patch.lastError : null,
+    lastErrorAt: Object.hasOwn(patch, "lastErrorAt") ? patch.lastErrorAt : null,
+    errorCode: null,
+    rateLimitedUntil: null,
+    backoffLevel: 0,
+  };
+
+  for (const key of Object.keys(existing || {})) {
+    if (key.startsWith(MODEL_LOCK_PREFIX)) normalized[key] = null;
+  }
+
+  return normalized;
+}
 
 function rowToConn(row) {
   if (!row) return null;
@@ -28,7 +66,18 @@ function rowToConn(row) {
 }
 
 function connToRow(c) {
-  const { id, provider, authType, name, email, priority, isActive, createdAt, updatedAt, ...rest } = c;
+  const {
+    id,
+    provider,
+    authType,
+    name,
+    email,
+    priority,
+    isActive,
+    createdAt,
+    updatedAt,
+    ...rest
+  } = c;
   return {
     id,
     provider,
@@ -52,17 +101,30 @@ function upsert(db, c) {
        provider=excluded.provider, authType=excluded.authType, name=excluded.name,
        email=excluded.email, priority=excluded.priority, isActive=excluded.isActive,
        data=excluded.data, updatedAt=excluded.updatedAt`,
-    [r.id, r.provider, r.authType, r.name, r.email, r.priority, r.isActive, r.data, r.createdAt, r.updatedAt]
+    [
+      r.id,
+      r.provider,
+      r.authType,
+      r.name,
+      r.email,
+      r.priority,
+      r.isActive,
+      r.data,
+      r.createdAt,
+      r.updatedAt,
+    ],
   );
 }
 
 function deriveConnectionName(data, fallbackName) {
   if (data.provider === "github") {
-    return data.providerSpecificData?.githubLogin
-      || data.providerSpecificData?.githubEmail
-      || data.email
-      || data.providerSpecificData?.githubName
-      || fallbackName;
+    return (
+      data.providerSpecificData?.githubLogin ||
+      data.providerSpecificData?.githubEmail ||
+      data.email ||
+      data.providerSpecificData?.githubName ||
+      fallbackName
+    );
   }
   return fallbackName;
 }
@@ -71,8 +133,14 @@ export async function getProviderConnections(filter = {}) {
   const db = await getAdapter();
   const where = [];
   const params = [];
-  if (filter.provider) { where.push("provider = ?"); params.push(filter.provider); }
-  if (filter.isActive !== undefined) { where.push("isActive = ?"); params.push(filter.isActive ? 1 : 0); }
+  if (filter.provider) {
+    where.push("provider = ?");
+    params.push(filter.provider);
+  }
+  if (filter.isActive !== undefined) {
+    where.push("isActive = ?");
+    params.push(filter.isActive ? 1 : 0);
+  }
   const sql = `SELECT * FROM providerConnections${where.length ? ` WHERE ${where.join(" AND ")}` : ""}`;
   const rows = db.all(sql, params);
   const list = rows.map(rowToConn);
@@ -88,14 +156,19 @@ export async function getProviderConnectionById(id) {
 
 // Internal sync reorder — must be called INSIDE a transaction
 function reorderInTx(db, providerId) {
-  const list = db.all(`SELECT * FROM providerConnections WHERE provider = ?`, [providerId]).map(rowToConn);
+  const list = db
+    .all(`SELECT * FROM providerConnections WHERE provider = ?`, [providerId])
+    .map(rowToConn);
   list.sort((a, b) => {
     const pDiff = (a.priority || 0) - (b.priority || 0);
     if (pDiff !== 0) return pDiff;
     return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
   });
   list.forEach((c, i) => {
-    db.run(`UPDATE providerConnections SET priority = ? WHERE id = ?`, [i + 1, c.id]);
+    db.run(`UPDATE providerConnections SET priority = ? WHERE id = ?`, [
+      i + 1,
+      c.id,
+    ]);
   });
 }
 
@@ -105,13 +178,17 @@ export async function createProviderConnection(data) {
   let result;
 
   db.transaction(() => {
-    const all = db.all(`SELECT * FROM providerConnections WHERE provider = ?`, [data.provider]).map(rowToConn);
+    const all = db
+      .all(`SELECT * FROM providerConnections WHERE provider = ?`, [
+        data.provider,
+      ])
+      .map(rowToConn);
 
     let existing = null;
     if (data.authType === "oauth" && data.email) {
       const incomingUsername = data.providerSpecificData?.username;
       const incomingWs = data.providerSpecificData?.chatgptAccountId;
-      existing = all.find(c => {
+      existing = all.find((c) => {
         if (c.authType !== "oauth" || c.email !== data.email) return false;
 
         // Codex/OpenAI can issue multiple OAuth grants for the same email.
@@ -142,24 +219,34 @@ export async function createProviderConnection(data) {
         return true;
       });
     } else if (data.authType === "apikey" && data.name) {
-      existing = all.find(c => c.authType === "apikey" && c.name === data.name);
+      existing = all.find(
+        (c) => c.authType === "apikey" && c.name === data.name,
+      );
     }
     // access_token: never dedup — user manages duplicates manually
 
     if (existing) {
-      const merged = { ...existing, ...data, updatedAt: now };
+      const normalized = resetHealthStateOnActivation(existing, data);
+      const merged = { ...existing, ...normalized, updatedAt: now };
       upsert(db, merged);
       result = merged;
       return;
     }
 
     let connectionName = data.name || null;
-    if (!connectionName && (data.authType === "oauth" || data.authType === "access_token")) {
-      connectionName = deriveConnectionName(data, data.email || `Account ${all.length + 1}`);
+    if (
+      !connectionName &&
+      (data.authType === "oauth" || data.authType === "access_token")
+    ) {
+      connectionName = deriveConnectionName(
+        data,
+        data.email || `Account ${all.length + 1}`,
+      );
     }
     let connectionPriority = data.priority;
     if (!connectionPriority) {
-      connectionPriority = all.reduce((m, c) => Math.max(m, c.priority || 0), 0) + 1;
+      connectionPriority =
+        all.reduce((m, c) => Math.max(m, c.priority || 0), 0) + 1;
     }
 
     const conn = {
@@ -175,7 +262,10 @@ export async function createProviderConnection(data) {
     for (const f of OPTIONAL_FIELDS) {
       if (data[f] !== undefined && data[f] !== null) conn[f] = data[f];
     }
-    if (data.providerSpecificData && Object.keys(data.providerSpecificData).length > 0) {
+    if (
+      data.providerSpecificData &&
+      Object.keys(data.providerSpecificData).length > 0
+    ) {
       conn.providerSpecificData = data.providerSpecificData;
     }
     if (data.email !== undefined) conn.email = data.email;
@@ -194,9 +284,17 @@ export async function updateProviderConnection(id, data) {
   let result;
   db.transaction(() => {
     const row = db.get(`SELECT * FROM providerConnections WHERE id = ?`, [id]);
-    if (!row) { result = null; return; }
+    if (!row) {
+      result = null;
+      return;
+    }
     const existing = rowToConn(row);
-    const merged = { ...existing, ...data, updatedAt: new Date().toISOString() };
+    const normalized = resetHealthStateOnActivation(existing, data);
+    const merged = {
+      ...existing,
+      ...normalized,
+      updatedAt: new Date().toISOString(),
+    };
     upsert(db, merged);
     if (data.priority !== undefined) reorderInTx(db, existing.provider);
     result = merged;
@@ -208,7 +306,10 @@ export async function deleteProviderConnection(id) {
   const db = await getAdapter();
   let ok = false;
   db.transaction(() => {
-    const row = db.get(`SELECT provider FROM providerConnections WHERE id = ?`, [id]);
+    const row = db.get(
+      `SELECT provider FROM providerConnections WHERE id = ?`,
+      [id],
+    );
     if (!row) return;
     db.run(`DELETE FROM providerConnections WHERE id = ?`, [id]);
     reorderInTx(db, row.provider);
@@ -219,7 +320,10 @@ export async function deleteProviderConnection(id) {
 
 export async function deleteProviderConnectionsByProvider(providerId) {
   const db = await getAdapter();
-  const before = db.get(`SELECT COUNT(*) AS n FROM providerConnections WHERE provider = ?`, [providerId]);
+  const before = db.get(
+    `SELECT COUNT(*) AS n FROM providerConnections WHERE provider = ?`,
+    [providerId],
+  );
   db.run(`DELETE FROM providerConnections WHERE provider = ?`, [providerId]);
   return before?.n || 0;
 }
@@ -232,10 +336,23 @@ export async function reorderProviderConnections(providerId) {
 export async function cleanupProviderConnections() {
   const db = await getAdapter();
   const fieldsToCheck = [
-    "displayName", "email", "globalPriority", "defaultModel",
-    "accessToken", "refreshToken", "expiresAt", "tokenType",
-    "scope", "projectId", "apiKey", "testStatus",
-    "lastTested", "lastError", "lastErrorAt", "rateLimitedUntil", "expiresIn",
+    "displayName",
+    "email",
+    "globalPriority",
+    "defaultModel",
+    "accessToken",
+    "refreshToken",
+    "expiresAt",
+    "tokenType",
+    "scope",
+    "projectId",
+    "apiKey",
+    "testStatus",
+    "lastTested",
+    "lastError",
+    "lastErrorAt",
+    "rateLimitedUntil",
+    "expiresIn",
     "consecutiveUseCount",
   ];
   let cleaned = 0;
@@ -246,10 +363,17 @@ export async function cleanupProviderConnections() {
       let dirty = false;
       for (const f of fieldsToCheck) {
         if (conn[f] === null || conn[f] === undefined) {
-          if (f in conn) { delete conn[f]; cleaned++; dirty = true; }
+          if (f in conn) {
+            delete conn[f];
+            cleaned++;
+            dirty = true;
+          }
         }
       }
-      if (conn.providerSpecificData && Object.keys(conn.providerSpecificData).length === 0) {
+      if (
+        conn.providerSpecificData &&
+        Object.keys(conn.providerSpecificData).length === 0
+      ) {
         delete conn.providerSpecificData;
         cleaned++;
         dirty = true;

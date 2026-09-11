@@ -6,7 +6,10 @@ import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
 import { v4 as uuidv4 } from "uuid";
 import { applyKiroSessionReplay } from "../../utils/kiroSessionReplay.js";
-import { resolveContinuationId, resolveSessionIdentity } from "../../utils/sessionManager.js";
+import {
+  resolveContinuationId,
+  resolveSessionIdentity,
+} from "../../utils/sessionManager.js";
 import {
   resolveKiroModelIntent,
   applyKiroThinkingOverride,
@@ -15,7 +18,7 @@ import {
   KIRO_AGENTIC_SYSTEM_PROMPT,
   resolveDefaultProfileArn,
   buildKiroAdditionalModelRequestFieldsForModel,
-  usesKiroNativeGptEffort
+  usesKiroNativeGptEffort,
 } from "../../config/kiroConstants.js";
 import { parseDataUri } from "../concerns/image.js";
 import { DEFAULT_IMAGE_MIME } from "../schema/index.js";
@@ -30,7 +33,11 @@ import {
  */
 function safeJSONParse(str, fallback) {
   if (typeof str !== "string") return str ?? fallback;
-  try { return JSON.parse(str); } catch { return fallback; }
+  try {
+    return JSON.parse(str);
+  } catch {
+    return fallback;
+  }
 }
 
 /**
@@ -55,8 +62,8 @@ function convertMessages(messages, model) {
       const userMsg = {
         userInputMessage: {
           content: content,
-          modelId: ""
-        }
+          modelId: "",
+        },
       };
 
       // Attach images if present (Kiro API supports images field)
@@ -66,7 +73,7 @@ function convertMessages(messages, model) {
 
       if (pendingToolResults.length > 0) {
         userMsg.userInputMessage.userInputMessageContext = {
-          toolResults: pendingToolResults
+          toolResults: pendingToolResults,
         };
       }
 
@@ -79,8 +86,8 @@ function convertMessages(messages, model) {
       const content = pendingAssistantContent.join("\n\n").trim() || "...";
       const assistantMsg = {
         assistantResponseMessage: {
-          content: content
-        }
+          content: content,
+        },
       };
       history.push(assistantMsg);
       pendingAssistantContent = [];
@@ -120,7 +127,10 @@ function convertMessages(messages, model) {
             if (parsed) {
               const format = parsed.mimeType.split("/")[1] || parsed.mimeType;
               pendingImages.push({ format, source: { bytes: parsed.base64 } });
-            } else if (url.startsWith("http://") || url.startsWith("https://")) {
+            } else if (
+              url.startsWith("http://") ||
+              url.startsWith("https://")
+            ) {
               // Kiro only supports base64 — fallback to URL text
               textParts.push(`[Image: ${url}]`);
             }
@@ -136,17 +146,21 @@ function convertMessages(messages, model) {
         content = textParts.join("\n");
 
         // Check for tool_result blocks
-        const toolResultBlocks = msg.content.filter(c => c.type === CLAUDE_BLOCK.TOOL_RESULT);
+        const toolResultBlocks = msg.content.filter(
+          (c) => c.type === CLAUDE_BLOCK.TOOL_RESULT,
+        );
         if (toolResultBlocks.length > 0) {
-          toolResultBlocks.forEach(block => {
+          toolResultBlocks.forEach((block) => {
             const text = Array.isArray(block.content)
-              ? block.content.map(c => c.text || "").join("\n")
-              : (typeof block.content === "string" ? block.content : "");
+              ? block.content.map((c) => c.text || "").join("\n")
+              : typeof block.content === "string"
+                ? block.content
+                : "";
 
             pendingToolResults.push({
               toolUseId: block.tool_use_id,
               status: block.is_error ? "error" : "success",
-              content: [{ text: text }]
+              content: [{ text: text }],
             });
           });
         }
@@ -158,12 +172,12 @@ function convertMessages(messages, model) {
         pendingToolResults.push({
           toolUseId: msg.tool_call_id,
           status: msg.is_error || msg.status === "error" ? "error" : "success",
-          content: [{ text: toolContent }]
+          content: [{ text: toolContent }],
         });
       } else if (content) {
         // <instructions> tags: Claude models treat these as authoritative directives.
         pendingUserContent.push(
-          wasSystem ? `<instructions>\n${content}\n</instructions>` : content
+          wasSystem ? `<instructions>\n${content}\n</instructions>` : content,
         );
       }
     } else if (role === ROLE.ASSISTANT) {
@@ -172,10 +186,17 @@ function convertMessages(messages, model) {
       let toolUses = [];
 
       if (Array.isArray(msg.content)) {
-        const textBlocks = msg.content.filter(c => c.type === OPENAI_BLOCK.TEXT);
-        textContent = textBlocks.map(b => b.text).join("\n").trim();
+        const textBlocks = msg.content.filter(
+          (c) => c.type === OPENAI_BLOCK.TEXT,
+        );
+        textContent = textBlocks
+          .map((b) => b.text)
+          .join("\n")
+          .trim();
 
-        const toolUseBlocks = msg.content.filter(c => c.type === CLAUDE_BLOCK.TOOL_USE);
+        const toolUseBlocks = msg.content.filter(
+          (c) => c.type === CLAUDE_BLOCK.TOOL_USE,
+        );
         toolUses = toolUseBlocks;
       } else if (typeof msg.content === "string") {
         textContent = msg.content.trim();
@@ -196,18 +217,18 @@ function convertMessages(messages, model) {
 
         const lastMsg = history[history.length - 1];
         if (lastMsg?.assistantResponseMessage) {
-          lastMsg.assistantResponseMessage.toolUses = toolUses.map(tc => {
+          lastMsg.assistantResponseMessage.toolUses = toolUses.map((tc) => {
             if (tc.function) {
               return {
                 toolUseId: tc.id || uuidv4(),
                 name: tc.function.name,
-                input: safeJSONParse(tc.function.arguments, {})
+                input: safeJSONParse(tc.function.arguments, {}),
               };
             } else {
               return {
                 toolUseId: tc.id || uuidv4(),
                 name: tc.name,
-                input: tc.input || {}
+                input: tc.input || {},
               };
             }
           });
@@ -232,9 +253,11 @@ function convertMessages(messages, model) {
   }
 
   // Clean up history for Kiro API compatibility
-  history.forEach(item => {
-    if (item.userInputMessage?.userInputMessageContext &&
-        Object.keys(item.userInputMessage.userInputMessageContext).length === 0) {
+  history.forEach((item) => {
+    if (
+      item.userInputMessage?.userInputMessageContext &&
+      Object.keys(item.userInputMessage.userInputMessageContext).length === 0
+    ) {
       delete item.userInputMessage.userInputMessageContext;
     }
     if (item.userInputMessage && !item.userInputMessage.modelId) {
@@ -248,11 +271,14 @@ function convertMessages(messages, model) {
   const mergedHistory = [];
   for (let i = 0; i < history.length; i++) {
     const current = history[i];
-    if (current.userInputMessage &&
-        mergedHistory.length > 0 &&
-        mergedHistory[mergedHistory.length - 1].userInputMessage) {
+    if (
+      current.userInputMessage &&
+      mergedHistory.length > 0 &&
+      mergedHistory[mergedHistory.length - 1].userInputMessage
+    ) {
       const prev = mergedHistory[mergedHistory.length - 1];
-      prev.userInputMessage.content += "\n\n" + current.userInputMessage.content;
+      prev.userInputMessage.content +=
+        "\n\n" + current.userInputMessage.content;
       // Merge context: combine toolResults, images, etc.
       const prevCtx = prev.userInputMessage.userInputMessageContext;
       const curCtx = current.userInputMessage.userInputMessageContext;
@@ -261,7 +287,10 @@ function convertMessages(messages, model) {
           prev.userInputMessage.userInputMessageContext = curCtx;
         } else {
           if (curCtx.toolResults?.length > 0) {
-            prevCtx.toolResults = [...(prevCtx.toolResults || []), ...curCtx.toolResults];
+            prevCtx.toolResults = [
+              ...(prevCtx.toolResults || []),
+              ...curCtx.toolResults,
+            ];
           }
           if (curCtx.tools?.length > 0) {
             prevCtx.tools = [...(prevCtx.tools || []), ...curCtx.tools];
@@ -281,7 +310,7 @@ function convertMessages(messages, model) {
       userInputMessage: {
         content: "",
         modelId: model,
-      }
+      },
     };
   }
 
@@ -312,10 +341,21 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
 
   const modelIntent = resolveKiroModelIntent(model);
   const { upstream: upstreamModel, agentic } = modelIntent;
-  const thinkingBody = applyKiroThinkingOverride(body, modelIntent.thinkingOverride);
-  const thinkingBudget = resolveKiroThinkingBudget(thinkingBody, credentials?.rawHeaders, modelIntent.model);
-  const additionalModelRequestFields = buildKiroAdditionalModelRequestFieldsForModel(thinkingBody, upstreamModel);
-  const usesNativeGptEffort = usesKiroNativeGptEffort(thinkingBody, upstreamModel);
+  const thinkingBody = applyKiroThinkingOverride(
+    body,
+    modelIntent.thinkingOverride,
+  );
+  const thinkingBudget = resolveKiroThinkingBudget(
+    thinkingBody,
+    credentials?.rawHeaders,
+    modelIntent.model,
+  );
+  const additionalModelRequestFields =
+    buildKiroAdditionalModelRequestFieldsForModel(thinkingBody, upstreamModel);
+  const usesNativeGptEffort = usesKiroNativeGptEffort(
+    thinkingBody,
+    upstreamModel,
+  );
 
   const { specs: toolSpecs, nameMap } = normalizeKiroToolSpecs(tools);
   const { history, currentMessage } = convertMessages(messages, upstreamModel);
@@ -333,16 +373,19 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
   // own default profile. Only OAuth/social keep the shared placeholder.
   const authMethod = credentials?.providerSpecificData?.authMethod;
   const accountBoundAuth =
-    authMethod === "api_key" || authMethod === "idc" || authMethod === "external_idp";
+    authMethod === "api_key" ||
+    authMethod === "idc" ||
+    authMethod === "external_idp";
   const profileArn = accountBoundAuth
-    ? (credentials?.providerSpecificData?.profileArn || "")
-    : (credentials?.providerSpecificData?.profileArn || resolveDefaultProfileArn(authMethod));
+    ? credentials?.providerSpecificData?.profileArn || ""
+    : credentials?.providerSpecificData?.profileArn ||
+      resolveDefaultProfileArn(authMethod);
 
   const timestamp = new Date().toISOString();
 
-  // Kiro CLI/KAS sends these as top-level systemPrompt. Keep a content fallback
-  // too because the CodeWhisperer surface does not always enforce top-level
-  // systemPrompt for direct calls.
+  // The system prompt travels inside the first user turn's content (contentPrefix):
+  // the CodeWhisperer surface rejects a top-level `systemPrompt` with
+  // 400 REQUEST_BODY_INVALID, so the value below is only a replay cache key.
   const systemPromptParts = [];
   if (thinkingBudget !== null && !usesNativeGptEffort) {
     systemPromptParts.push(buildThinkingSystemPrefix(thinkingBudget));
@@ -352,9 +395,16 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
   }
   const systemPrompt = systemPromptParts.filter(Boolean).join("\n\n");
   const currentTimeContext = `[Context: Current time is ${timestamp}]`;
-  const contentPrefix = [systemPrompt, currentTimeContext].filter(Boolean).join("\n\n");
+  const contentPrefix = [systemPrompt, currentTimeContext]
+    .filter(Boolean)
+    .join("\n\n");
 
-  const sessionIdentity = resolveSessionIdentity({ headers: credentials?.rawHeaders, body, connectionId: credentials?.connectionId, scope: "kiro" });
+  const sessionIdentity = resolveSessionIdentity({
+    headers: credentials?.rawHeaders,
+    body,
+    connectionId: credentials?.connectionId,
+    scope: "kiro",
+  });
   const conversationId = sessionIdentity.sessionId;
   const continuationId = resolveContinuationId({
     sessionId: conversationId,
@@ -388,7 +438,9 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
   // (role:N | pair:N | id:N | spec:N | orphan:0 | current) names the offending
   // turn so the shape can be diagnosed from the log alone.
   if (!canonical.valid) {
-    console.error(`[Kiro] refusing invalid conversation (openai → kiro): ${(canonical.errors || []).join(", ") || "unknown"} | turns=${(canonical.history || []).length + 1}`);
+    console.error(
+      `[Kiro] refusing invalid conversation (openai → kiro): ${(canonical.errors || []).join(", ") || "unknown"} | turns=${(canonical.history || []).length + 1}`,
+    );
     return null;
   }
   const replayCurrent = canonical.currentMessage.userInputMessage;
@@ -397,24 +449,21 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
     conversationState: {
       chatTriggerType: "MANUAL",
       conversationId,
-      agentContinuationId: continuationId,
-      agentTaskType: "vibe",
       currentMessage: {
         userInputMessage: {
           content: replayCurrent.content || "",
           modelId: upstreamModel,
           origin: "AI_EDITOR",
           ...(replayCurrent.images?.length > 0 && {
-            images: replayCurrent.images
+            images: replayCurrent.images,
           }),
           ...(replayCurrent.userInputMessageContext && {
-            userInputMessageContext: replayCurrent.userInputMessageContext
-          })
-        }
+            userInputMessageContext: replayCurrent.userInputMessageContext,
+          }),
+        },
       },
-      history: canonical.history
+      history: canonical.history,
     },
-    agentMode: "vibe",
   };
 
   if (profileArn) {
@@ -427,14 +476,15 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
   if (maxTokens || temperature !== undefined || topP !== undefined) {
     payload.inferenceConfig = {};
     if (maxTokens) payload.inferenceConfig.maxTokens = maxTokens;
-    if (temperature !== undefined) payload.inferenceConfig.temperature = temperature;
+    if (temperature !== undefined)
+      payload.inferenceConfig.temperature = temperature;
     if (topP !== undefined) payload.inferenceConfig.topP = topP;
   }
 
   // Tag payload so the executor can route the upstream model id correctly.
   Object.defineProperty(payload, "_kiroUpstreamModel", {
     value: upstreamModel,
-    enumerable: false
+    enumerable: false,
   });
 
   return payload;

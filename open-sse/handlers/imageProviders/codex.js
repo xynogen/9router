@@ -2,13 +2,21 @@
 import { randomUUID } from "node:crypto";
 import { nowSec } from "./_base.js";
 import { PROVIDERS } from "../../config/providers.js";
+import { CODEX_CLI_VERSION } from "../../config/appConstants.js";
 
 const CODEX_RESPONSES_URL = PROVIDERS["codex"].baseUrl;
-const CODEX_USER_AGENT = "codex_cli_rs/0.136.0";
-const CODEX_VERSION = "0.136.0";
+const CODEX_USER_AGENT = `codex_cli_rs/${CODEX_CLI_VERSION}`;
 const CODEX_ORIGINATOR = "codex_cli_rs";
 const CODEX_MODEL_SUFFIX = "-image";
 const CODEX_REF_DETAIL = "high";
+const CODEX_IMAGES_MAIN_MODEL = "gpt-5.5";
+const CODEX_TOOL_IMAGE_MODELS = new Set([
+  "gpt-image-1.5",
+  "gpt-image-2",
+  "gpt-image-2.5",
+  "gpt-image-2.5-flare",
+  "gpt-image-2.5-sunburst",
+]);
 
 function decodeAccountId(idToken) {
   try {
@@ -16,7 +24,9 @@ function decodeAccountId(idToken) {
     if (parts.length !== 3) return null;
     const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     const pad = (4 - (b64.length % 4)) % 4;
-    const payload = JSON.parse(Buffer.from(b64 + "=".repeat(pad), "base64").toString("utf8"));
+    const payload = JSON.parse(
+      Buffer.from(b64 + "=".repeat(pad), "base64").toString("utf8"),
+    );
     return payload?.["https://api.openai.com/auth"]?.chatgpt_account_id || null;
   } catch {
     return null;
@@ -24,7 +34,16 @@ function decodeAccountId(idToken) {
 }
 
 function stripImageSuffix(model) {
-  return model.endsWith(CODEX_MODEL_SUFFIX) ? model.slice(0, -CODEX_MODEL_SUFFIX.length) : model;
+  return model.endsWith(CODEX_MODEL_SUFFIX)
+    ? model.slice(0, -CODEX_MODEL_SUFFIX.length)
+    : model;
+}
+
+function resolveCodexImageModels(model) {
+  if (CODEX_TOOL_IMAGE_MODELS.has(model)) {
+    return { responsesModel: CODEX_IMAGES_MAIN_MODEL, toolModel: model };
+  }
+  return { responsesModel: stripImageSuffix(model), toolModel: null };
 }
 
 function toDataUrl(input) {
@@ -36,7 +55,10 @@ function toDataUrl(input) {
 function buildContent(prompt, refs, detail = CODEX_REF_DETAIL) {
   const content = [];
   refs.forEach((url, index) => {
-    content.push({ type: "input_text", text: `<image name=image${index + 1}>` });
+    content.push({
+      type: "input_text",
+      text: `<image name=image${index + 1}>`,
+    });
     content.push({ type: "input_image", image_url: url, detail });
     content.push({ type: "input_text", text: "</image>" });
   });
@@ -84,11 +106,17 @@ async function parseStream(response, log, callbacks = {}) {
         callbacks.onProgress({ stage: eventName, bytesReceived });
       }
 
-      if (eventName === "response.image_generation_call.partial_image" && dataStr) {
+      if (
+        eventName === "response.image_generation_call.partial_image" &&
+        dataStr
+      ) {
         try {
           const data = JSON.parse(dataStr);
           if (callbacks.onPartialImage && data?.partial_image_b64) {
-            callbacks.onPartialImage({ b64_json: data.partial_image_b64, index: data.partial_image_index });
+            callbacks.onPartialImage({
+              b64_json: data.partial_image_b64,
+              index: data.partial_image_index,
+            });
           }
         } catch {}
       }
@@ -113,7 +141,9 @@ function buildSseResponse(providerResponse, log, onSuccess) {
     async start(controller) {
       const enc = new TextEncoder();
       const send = (event, data) => {
-        controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        controller.enqueue(
+          enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+        );
       };
       try {
         const b64 = await parseStream(providerResponse, log, {
@@ -121,7 +151,10 @@ function buildSseResponse(providerResponse, log, onSuccess) {
           onPartialImage: (info) => send("partial_image", info),
         });
         if (!b64) {
-          send("error", { message: "Codex did not return an image. Account may not be entitled (Plus/Pro required)." });
+          send("error", {
+            message:
+              "Codex did not return an image. Account may not be entitled (Plus/Pro required).",
+          });
         } else {
           if (onSuccess) await onSuccess();
           send("done", { created: nowSec(), data: [{ b64_json: b64 }] });
@@ -137,7 +170,7 @@ function buildSseResponse(providerResponse, log, onSuccess) {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
       "X-Accel-Buffering": "no",
       "Access-Control-Allow-Origin": "*",
     },
@@ -148,40 +181,61 @@ export default {
   stream: true,
   buildUrl: () => CODEX_RESPONSES_URL,
   buildHeaders: (creds) => {
-    const accountId = creds?.providerSpecificData?.chatgptAccountId || decodeAccountId(creds?.idToken);
+    const accountId =
+      creds?.providerSpecificData?.chatgptAccountId ||
+      decodeAccountId(creds?.idToken);
     return {
-      "accept": "text/event-stream, application/json",
-      "authorization": `Bearer ${creds?.accessToken || ""}`,
+      accept: "text/event-stream, application/json",
+      authorization: `Bearer ${creds?.accessToken || ""}`,
       "chatgpt-account-id": accountId || "",
       "content-type": "application/json",
-      "originator": CODEX_ORIGINATOR,
-      "session_id": randomUUID(),
+      originator: CODEX_ORIGINATOR,
+      session_id: randomUUID(),
       "user-agent": CODEX_USER_AGENT,
-      "version": CODEX_VERSION,
+      version: CODEX_CLI_VERSION,
       "x-client-request-id": randomUUID(),
     };
   },
   buildBody: (model, body) => {
     const refs = [];
-    if (Array.isArray(body.images)) body.images.forEach((i) => { const u = toDataUrl(i); if (u) refs.push(u); });
+    if (Array.isArray(body.images))
+      body.images.forEach((i) => {
+        const u = toDataUrl(i);
+        if (u) refs.push(u);
+      });
     const single = toDataUrl(body.image);
     if (single) refs.push(single);
     const detail = body.image_detail || CODEX_REF_DETAIL;
-    const imgTool = { type: "image_generation", output_format: (body.output_format || "png").toLowerCase() };
+    const { responsesModel, toolModel } = resolveCodexImageModels(model);
+    const imgTool = {
+      type: "image_generation",
+      output_format: (body.output_format || "png").toLowerCase(),
+    };
+    if (toolModel) {
+      imgTool.action = refs.length > 0 ? "edit" : "generate";
+      imgTool.model = toolModel;
+    }
     if (body.size && body.size !== "") imgTool.size = body.size;
     if (body.quality && body.quality !== "") imgTool.quality = body.quality;
-    if (body.background && body.background !== "") imgTool.background = body.background;
+    if (body.background && body.background !== "")
+      imgTool.background = body.background;
     return {
-      model: stripImageSuffix(model),
+      model: responsesModel,
       instructions: "",
-      input: [{ type: "message", role: "user", content: buildContent(body.prompt, refs, detail) }],
+      input: [
+        {
+          type: "message",
+          role: "user",
+          content: buildContent(body.prompt, refs, detail),
+        },
+      ],
       tools: [imgTool],
-      tool_choice: "auto",
+      tool_choice: toolModel ? { type: "image_generation" } : "auto",
       parallel_tool_calls: false,
       prompt_cache_key: randomUUID(),
       stream: true,
       store: false,
-      reasoning: null,
+      reasoning: toolModel ? { effort: "medium", summary: "auto" } : null,
     };
   },
   // Custom: codex parses SSE → either pipe to client or collect b64
@@ -191,7 +245,9 @@ export default {
     }
     const b64 = await parseStream(response, log);
     if (!b64) {
-      throw new Error("Codex did not return an image. Account may not be entitled (Plus/Pro required).");
+      throw new Error(
+        "Codex did not return an image. Account may not be entitled (Plus/Pro required).",
+      );
     }
     return { created: nowSec(), data: [{ b64_json: b64 }] };
   },

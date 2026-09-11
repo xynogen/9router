@@ -56,7 +56,8 @@ export function isUnrecoverableRefreshError(result) {
 export function getRefreshLeadMs(provider) {
   if (REFRESH_LEAD_MS[provider]) return REFRESH_LEAD_MS[provider];
   // Legacy id after kimi-coding → kimi merge
-  if (provider === "kimi-coding" && REFRESH_LEAD_MS.kimi) return REFRESH_LEAD_MS.kimi;
+  if (provider === "kimi-coding" && REFRESH_LEAD_MS.kimi)
+    return REFRESH_LEAD_MS.kimi;
   return TOKEN_EXPIRY_BUFFER_MS;
 }
 
@@ -64,7 +65,12 @@ export function parseVertexSaJson(apiKey) {
   if (typeof apiKey !== "string") return null;
   try {
     const parsed = JSON.parse(apiKey);
-    if (parsed.type === "service_account" && parsed.client_email && parsed.private_key && parsed.project_id) {
+    if (
+      parsed.type === "service_account" &&
+      parsed.client_email &&
+      parsed.private_key &&
+      parsed.project_id
+    ) {
       return parsed;
     }
     return null;
@@ -86,11 +92,19 @@ export async function refreshVertexToken(saJson, log) {
 
   try {
     const { SignJWT, importPKCS8 } = await import("jose");
-    log?.debug?.("TOKEN_REFRESH", `Vertex minting token for ${saJson.client_email}`);
-    const privateKey = await importPKCS8(saJson.private_key.replace(/\\n/g, "\n"), "RS256");
+    log?.debug?.(
+      "TOKEN_REFRESH",
+      `Vertex minting token for ${saJson.client_email}`,
+    );
+    const privateKey = await importPKCS8(
+      saJson.private_key.replace(/\\n/g, "\n"),
+      "RS256",
+    );
     const now = Math.floor(Date.now() / 1000);
 
-    const jwt = await new SignJWT({ scope: "https://www.googleapis.com/auth/cloud-platform" })
+    const jwt = await new SignJWT({
+      scope: "https://www.googleapis.com/auth/cloud-platform",
+    })
       .setProtectedHeader({ alg: "RS256" })
       .setIssuer(saJson.client_email)
       .setAudience(OAUTH_ENDPOINTS.google.token)
@@ -117,7 +131,10 @@ export async function refreshVertexToken(saJson, log) {
     const expiresAt = Date.now() + (expires_in ?? 3600) * 1000;
 
     vertexTokenCache.set(cacheKey, { token: access_token, expiresAt });
-    log?.info?.("TOKEN_REFRESH", `Vertex token minted for ${saJson.client_email}`);
+    log?.info?.(
+      "TOKEN_REFRESH",
+      `Vertex token minted for ${saJson.client_email}`,
+    );
 
     return { accessToken: access_token, expiresAt };
   } catch (error) {
@@ -133,13 +150,26 @@ function vertexRefreshHandler(c, log) {
 }
 
 const REFRESH_HANDLERS = {
-  "gemini-cli": (c, log) => refreshGoogleToken(c.refreshToken, PROVIDERS["gemini-cli"].clientId, PROVIDERS["gemini-cli"].clientSecret, log),
-  antigravity: (c, log) => refreshGoogleToken(c.refreshToken, PROVIDERS.antigravity.clientId, PROVIDERS.antigravity.clientSecret, log),
+  "gemini-cli": (c, log) =>
+    refreshGoogleToken(
+      c.refreshToken,
+      PROVIDERS["gemini-cli"].clientId,
+      PROVIDERS["gemini-cli"].clientSecret,
+      log,
+    ),
+  antigravity: (c, log) =>
+    refreshGoogleToken(
+      c.refreshToken,
+      PROVIDERS.antigravity.clientId,
+      PROVIDERS.antigravity.clientSecret,
+      log,
+    ),
   claude: (c, log) => refreshClaudeOAuthToken(c.refreshToken, log),
   codex: (c, log) => refreshCodexToken(c.refreshToken, log),
   iflow: (c, log) => refreshIflowToken(c.refreshToken, log),
   github: (c, log) => refreshGitHubToken(c.refreshToken, log),
-  kiro: (c, log) => refreshKiroToken(c.refreshToken, c.providerSpecificData, log),
+  kiro: (c, log) =>
+    refreshKiroToken(c.refreshToken, c.providerSpecificData, log),
   xai: (c, log) => refreshXaiToken(c.refreshToken, log),
   // Grok CLI shares xAI OAuth client + token endpoint (device-code tokens refresh the same way)
   "grok-cli": (c, log) => refreshXaiToken(c.refreshToken, log),
@@ -148,18 +178,27 @@ const REFRESH_HANDLERS = {
   "codebuddy-intl": (c, log) => refreshCodebuddyIntlToken(c.refreshToken, log),
   trae: (c, log) => refreshTraeToken(c.refreshToken, c, log),
   cline: (c, log) => refreshClineToken(c.refreshToken, log),
+  // ClinePass shares Cline's WorkOS auth endpoints, so the same refresh works.
+  clinepass: (c, log) => refreshClineToken(c.refreshToken, log),
   zed: () => refreshZedToken(),
   windsurf: (c, log) => refreshWindsurfToken(c, log),
   // Kimi Code OAuth (merged into id `kimi`); legacy id still routes here
   kimi: (c, log) => refreshKimiToken(c.refreshToken, c, log),
   "kimi-coding": (c, log) => refreshKimiToken(c.refreshToken, c, log),
   vertex: vertexRefreshHandler,
-  "vertex-partner": vertexRefreshHandler
+  "vertex-partner": vertexRefreshHandler,
 };
 
 export async function getAccessToken(provider, credentials, log) {
-  if (!credentials || !credentials.refreshToken || typeof credentials.refreshToken !== "string") {
-    log?.warn?.("TOKEN_REFRESH", `No valid refresh token available for provider: ${provider}`);
+  if (
+    !credentials ||
+    !credentials.refreshToken ||
+    typeof credentials.refreshToken !== "string"
+  ) {
+    log?.warn?.(
+      "TOKEN_REFRESH",
+      `No valid refresh token available for provider: ${provider}`,
+    );
     return null;
   }
   return _getAccessTokenInternal(provider, credentials, log);
@@ -167,11 +206,19 @@ export async function getAccessToken(provider, credentials, log) {
 
 async function _getAccessTokenInternal(provider, credentials, log) {
   if (provider === "gemini") {
-    return refreshGoogleToken(credentials.refreshToken, PROVIDERS.gemini.clientId, PROVIDERS.gemini.clientSecret, log);
+    return refreshGoogleToken(
+      credentials.refreshToken,
+      PROVIDERS.gemini.clientId,
+      PROVIDERS.gemini.clientSecret,
+      log,
+    );
   }
   const handler = REFRESH_HANDLERS[provider];
   if (!handler) {
-    log?.warn?.("TOKEN_REFRESH", `Unsupported provider for token refresh: ${provider}`);
+    log?.warn?.(
+      "TOKEN_REFRESH",
+      `Unsupported provider for token refresh: ${provider}`,
+    );
     return null;
   }
   return handler(credentials, log);
@@ -180,13 +227,18 @@ async function _getAccessTokenInternal(provider, credentials, log) {
 export async function refreshTokenByProvider(provider, credentials, log) {
   if (!credentials.refreshToken) return null;
   const handler = REFRESH_HANDLERS[provider];
-  return handler ? handler(credentials, log) : refreshAccessToken(provider, credentials.refreshToken, credentials, log);
+  return handler
+    ? handler(credentials, log)
+    : refreshAccessToken(provider, credentials.refreshToken, credentials, log);
 }
 
 export function formatProviderCredentials(provider, credentials, log) {
   const config = PROVIDERS[provider];
   if (!config) {
-    log?.warn?.("TOKEN_REFRESH", `No configuration found for provider: ${provider}`);
+    log?.warn?.(
+      "TOKEN_REFRESH",
+      `No configuration found for provider: ${provider}`,
+    );
     return null;
   }
 
@@ -195,13 +247,13 @@ export function formatProviderCredentials(provider, credentials, log) {
       return {
         apiKey: credentials.apiKey,
         accessToken: credentials.accessToken,
-        projectId: credentials.projectId
+        projectId: credentials.projectId,
       };
 
     case "claude":
       return {
         apiKey: credentials.apiKey,
-        accessToken: credentials.accessToken
+        accessToken: credentials.accessToken,
       };
 
     case "codex":
@@ -212,7 +264,7 @@ export function formatProviderCredentials(provider, credentials, log) {
     case "grok-cli":
       return {
         apiKey: credentials.apiKey,
-        accessToken: credentials.accessToken
+        accessToken: credentials.accessToken,
       };
 
     case "antigravity":
@@ -220,14 +272,14 @@ export function formatProviderCredentials(provider, credentials, log) {
       return {
         accessToken: credentials.accessToken,
         refreshToken: credentials.refreshToken,
-        projectId: credentials.projectId
+        projectId: credentials.projectId,
       };
 
     default:
       return {
         apiKey: credentials.apiKey,
         accessToken: credentials.accessToken,
-        refreshToken: credentials.refreshToken
+        refreshToken: credentials.refreshToken,
       };
   }
 }
@@ -238,9 +290,13 @@ export async function getAllAccessTokens(userInfo, log) {
   if (userInfo.connections && Array.isArray(userInfo.connections)) {
     for (const connection of userInfo.connections) {
       if (connection.isActive && connection.provider) {
-        const token = await getAccessToken(connection.provider, {
-          refreshToken: connection.refreshToken
-        }, log);
+        const token = await getAccessToken(
+          connection.provider,
+          {
+            refreshToken: connection.refreshToken,
+          },
+          log,
+        );
 
         if (token) {
           results[connection.provider] = token;
@@ -256,15 +312,21 @@ export async function refreshWithRetry(refreshFn, maxRetries = 3, log = null) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     if (attempt > 0) {
       const delay = attempt * 1000;
-      log?.debug?.("TOKEN_REFRESH", `Retry ${attempt}/${maxRetries} after ${delay}ms`);
-      await new Promise(r => setTimeout(r, delay));
+      log?.debug?.(
+        "TOKEN_REFRESH",
+        `Retry ${attempt}/${maxRetries} after ${delay}ms`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
     }
 
     try {
       const result = await refreshFn();
       if (result) return result;
     } catch (error) {
-      log?.warn?.("TOKEN_REFRESH", `Attempt ${attempt + 1}/${maxRetries} failed: ${error.message}`);
+      log?.warn?.(
+        "TOKEN_REFRESH",
+        `Attempt ${attempt + 1}/${maxRetries} failed: ${error.message}`,
+      );
     }
   }
 

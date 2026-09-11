@@ -30,7 +30,10 @@ describe("DB SQLite layer — public API parity", () => {
     expect(s.cloudEnabled).toBe(false);
     expect(s.requireLogin).toBe(true);
 
-    const updated = await sqliteDb.updateSettings({ cloudEnabled: true, customField: "x" });
+    const updated = await sqliteDb.updateSettings({
+      cloudEnabled: true,
+      customField: "x",
+    });
     expect(updated.cloudEnabled).toBe(true);
     expect(updated.customField).toBe("x");
     expect(updated.requireLogin).toBe(true); // default preserved
@@ -66,9 +69,24 @@ describe("DB SQLite layer — public API parity", () => {
   });
 
   it("providerConnections: CRUD + reorder by priority", async () => {
-    const c1 = await sqliteDb.createProviderConnection({ provider: "test", authType: "apikey", name: "a", apiKey: "k1" });
-    const c2 = await sqliteDb.createProviderConnection({ provider: "test", authType: "apikey", name: "b", apiKey: "k2" });
-    const c3 = await sqliteDb.createProviderConnection({ provider: "test", authType: "apikey", name: "c", apiKey: "k3" });
+    const c1 = await sqliteDb.createProviderConnection({
+      provider: "test",
+      authType: "apikey",
+      name: "a",
+      apiKey: "k1",
+    });
+    const c2 = await sqliteDb.createProviderConnection({
+      provider: "test",
+      authType: "apikey",
+      name: "b",
+      apiKey: "k2",
+    });
+    const c3 = await sqliteDb.createProviderConnection({
+      provider: "test",
+      authType: "apikey",
+      name: "c",
+      apiKey: "k3",
+    });
 
     const list = await sqliteDb.getProviderConnections({ provider: "test" });
     expect(list).toHaveLength(3);
@@ -78,7 +96,9 @@ describe("DB SQLite layer — public API parity", () => {
 
     // Update priority and reorder
     await sqliteDb.updateProviderConnection(c3.id, { priority: 1 });
-    const reordered = await sqliteDb.getProviderConnections({ provider: "test" });
+    const reordered = await sqliteDb.getProviderConnections({
+      provider: "test",
+    });
     expect(reordered[0].name).toBe("c");
 
     // Delete reorders remaining
@@ -90,8 +110,12 @@ describe("DB SQLite layer — public API parity", () => {
 
   it("providerConnections: optional fields persisted via JSON column", async () => {
     const c = await sqliteDb.createProviderConnection({
-      provider: "p2", authType: "oauth", email: "x@y.com",
-      accessToken: "tok", refreshToken: "rtok", expiresAt: 12345,
+      provider: "p2",
+      authType: "oauth",
+      email: "x@y.com",
+      accessToken: "tok",
+      refreshToken: "rtok",
+      expiresAt: 12345,
       providerSpecificData: { foo: "bar" },
     });
     const back = await sqliteDb.getProviderConnectionById(c.id);
@@ -99,6 +123,104 @@ describe("DB SQLite layer — public API parity", () => {
     expect(back.refreshToken).toBe("rtok");
     expect(back.expiresAt).toBe(12345);
     expect(back.providerSpecificData).toEqual({ foo: "bar" });
+  });
+
+  it("providerConnections: successful validation clears stale routing locks", async () => {
+    const c = await sqliteDb.createProviderConnection({
+      provider: "health-reset-update",
+      authType: "oauth",
+      email: "update@example.com",
+      accessToken: "old-token",
+    });
+    await sqliteDb.updateProviderConnection(c.id, {
+      testStatus: "unavailable",
+      lastError: "Access denied",
+      lastErrorAt: "2026-09-05T00:00:00.000Z",
+      errorCode: 403,
+      backoffLevel: 3,
+      rateLimitedUntil: "2099-01-01T00:00:00.000Z",
+      modelLock_modelA: "2099-01-01T00:00:00.000Z",
+      modelLock_modelB: "2099-01-01T00:00:00.000Z",
+    });
+
+    await sqliteDb.updateProviderConnection(c.id, { testStatus: "active" });
+
+    const back = await sqliteDb.getProviderConnectionById(c.id);
+    expect(back).toMatchObject({
+      testStatus: "active",
+      lastError: null,
+      lastErrorAt: null,
+      errorCode: null,
+      backoffLevel: 0,
+      rateLimitedUntil: null,
+      modelLock_modelA: null,
+      modelLock_modelB: null,
+    });
+  });
+
+  it("providerConnections: re-saving valid OAuth credentials clears stale routing locks", async () => {
+    const existing = await sqliteDb.createProviderConnection({
+      provider: "health-reset-resave",
+      authType: "oauth",
+      email: "resave@example.com",
+      accessToken: "old-token",
+    });
+    await sqliteDb.updateProviderConnection(existing.id, {
+      testStatus: "unavailable",
+      lastError: "Access denied",
+      errorCode: 403,
+      backoffLevel: 2,
+      modelLock_modelA: "2099-01-01T00:00:00.000Z",
+    });
+
+    const resaved = await sqliteDb.createProviderConnection({
+      provider: "health-reset-resave",
+      authType: "oauth",
+      email: "resave@example.com",
+      accessToken: "new-token",
+      testStatus: "active",
+    });
+
+    expect(resaved.id).toBe(existing.id);
+    const back = await sqliteDb.getProviderConnectionById(existing.id);
+    expect(back).toMatchObject({
+      accessToken: "new-token",
+      testStatus: "active",
+      lastError: null,
+      errorCode: null,
+      backoffLevel: 0,
+      modelLock_modelA: null,
+    });
+  });
+
+  it("providerConnections: active soft warnings survive the health reset", async () => {
+    const c = await sqliteDb.createProviderConnection({
+      provider: "health-reset-warning",
+      authType: "oauth",
+      email: "warning@example.com",
+    });
+    await sqliteDb.updateProviderConnection(c.id, {
+      testStatus: "unavailable",
+      lastError: "Old failure",
+      modelLock_modelA: "2099-01-01T00:00:00.000Z",
+    });
+
+    const warningAt = "2026-09-06T00:00:00.000Z";
+    await sqliteDb.updateProviderConnection(c.id, {
+      testStatus: "active",
+      lastError: "Connected, but credits are exhausted",
+      lastErrorAt: warningAt,
+    });
+
+    const back = await sqliteDb.getProviderConnectionById(c.id);
+    expect(back).toMatchObject({
+      testStatus: "active",
+      lastError: "Connected, but credits are exhausted",
+      lastErrorAt: warningAt,
+      errorCode: null,
+      backoffLevel: 0,
+      modelLock_modelA: null,
+    });
   });
 
   it("providerConnections: GitHub OAuth uses account identity as fallback name", async () => {
@@ -115,7 +237,12 @@ describe("DB SQLite layer — public API parity", () => {
   });
 
   it("providerNodes: CRUD", async () => {
-    const n = await sqliteDb.createProviderNode({ type: "openai", name: "Test", baseUrl: "https://api.test", apiType: "openai" });
+    const n = await sqliteDb.createProviderNode({
+      type: "openai",
+      name: "Test",
+      baseUrl: "https://api.test",
+      apiType: "openai",
+    });
     expect(n.id).toBeDefined();
     expect(n.baseUrl).toBe("https://api.test");
 
@@ -131,9 +258,17 @@ describe("DB SQLite layer — public API parity", () => {
   });
 
   it("proxyPools: CRUD with sort by updatedAt desc", async () => {
-    const p1 = await sqliteDb.createProxyPool({ name: "p1", proxyUrl: "http://a", type: "http" });
+    const p1 = await sqliteDb.createProxyPool({
+      name: "p1",
+      proxyUrl: "http://a",
+      type: "http",
+    });
     await new Promise((r) => setTimeout(r, 10));
-    const p2 = await sqliteDb.createProxyPool({ name: "p2", proxyUrl: "http://b", type: "http" });
+    const p2 = await sqliteDb.createProxyPool({
+      name: "p2",
+      proxyUrl: "http://b",
+      type: "http",
+    });
     const list = await sqliteDb.getProxyPools();
     expect(list[0].id).toBe(p2.id); // newest first
     await sqliteDb.deleteProxyPool(p1.id);
@@ -141,7 +276,11 @@ describe("DB SQLite layer — public API parity", () => {
   });
 
   it("combos: CRUD", async () => {
-    const c = await sqliteDb.createCombo({ name: "combo1", models: ["m1", "m2"], kind: "fallback" });
+    const c = await sqliteDb.createCombo({
+      name: "combo1",
+      models: ["m1", "m2"],
+      kind: "fallback",
+    });
     expect(c.id).toBeDefined();
     expect(c.models).toEqual(["m1", "m2"]);
     const byName = await sqliteDb.getComboByName("combo1");
@@ -163,8 +302,17 @@ describe("DB SQLite layer — public API parity", () => {
   });
 
   it("customModels: add/list/delete with dedupe", async () => {
-    const ok1 = await sqliteDb.addCustomModel({ providerAlias: "p1", id: "m1", type: "llm", name: "Model 1" });
-    const dup = await sqliteDb.addCustomModel({ providerAlias: "p1", id: "m1", type: "llm" });
+    const ok1 = await sqliteDb.addCustomModel({
+      providerAlias: "p1",
+      id: "m1",
+      type: "llm",
+      name: "Model 1",
+    });
+    const dup = await sqliteDb.addCustomModel({
+      providerAlias: "p1",
+      id: "m1",
+      type: "llm",
+    });
     expect(ok1).toBe(true);
     expect(dup).toBe(false);
     const list = await sqliteDb.getCustomModels();
@@ -184,7 +332,9 @@ describe("DB SQLite layer — public API parity", () => {
 
   it("disabledModels: add/remove per provider", async () => {
     await sqliteDb.disableModels("openai", ["gpt-3", "gpt-4"]);
-    expect(await sqliteDb.getDisabledByProvider("openai")).toEqual(expect.arrayContaining(["gpt-3", "gpt-4"]));
+    expect(await sqliteDb.getDisabledByProvider("openai")).toEqual(
+      expect.arrayContaining(["gpt-3", "gpt-4"]),
+    );
     await sqliteDb.enableModels("openai", ["gpt-3"]);
     expect(await sqliteDb.getDisabledByProvider("openai")).toEqual(["gpt-4"]);
     await sqliteDb.enableModels("openai", []);
@@ -193,14 +343,20 @@ describe("DB SQLite layer — public API parity", () => {
 
   it("usage: saveRequestUsage + getUsageHistory + getUsageStats", async () => {
     await sqliteDb.saveRequestUsage({
-      provider: "openai", model: "gpt-4", connectionId: "c1",
+      provider: "openai",
+      model: "gpt-4",
+      connectionId: "c1",
       tokens: { prompt_tokens: 100, completion_tokens: 50 },
-      endpoint: "/v1/chat/completions", status: "ok",
+      endpoint: "/v1/chat/completions",
+      status: "ok",
     });
     await sqliteDb.saveRequestUsage({
-      provider: "openai", model: "gpt-4", connectionId: "c1",
+      provider: "openai",
+      model: "gpt-4",
+      connectionId: "c1",
       tokens: { prompt_tokens: 200, completion_tokens: 100 },
-      endpoint: "/v1/chat/completions", status: "ok",
+      endpoint: "/v1/chat/completions",
+      status: "ok",
     });
 
     const hist = await sqliteDb.getUsageHistory({ provider: "openai" });
@@ -223,12 +379,20 @@ describe("DB SQLite layer — public API parity", () => {
 
   it("requestDetails: save → query with paging", async () => {
     // Enable observability first
-    await sqliteDb.updateSettings({ enableObservability: true, observabilityBatchSize: 1 });
+    await sqliteDb.updateSettings({
+      enableObservability: true,
+      observabilityBatchSize: 1,
+    });
 
     await sqliteDb.saveRequestDetail({
-      id: "d1", provider: "openai", model: "gpt-4", connectionId: "c1",
-      status: "ok", tokens: { prompt_tokens: 10 },
-      request: { method: "POST" }, response: { status: 200 },
+      id: "d1",
+      provider: "openai",
+      model: "gpt-4",
+      connectionId: "c1",
+      status: "ok",
+      tokens: { prompt_tokens: 10 },
+      request: { method: "POST" },
+      response: { status: 200 },
     });
 
     // Wait for buffer flush
@@ -261,7 +425,9 @@ describe("DB SQLite layer — public API parity", () => {
   });
 
   it("pricing: user pricing merged with constants", async () => {
-    await sqliteDb.updatePricing({ openai: { "gpt-test": { input: 1, output: 2 } } });
+    await sqliteDb.updatePricing({
+      openai: { "gpt-test": { input: 1, output: 2 } },
+    });
     const p = await sqliteDb.getPricing();
     expect(p.openai["gpt-test"]).toEqual({ input: 1, output: 2 });
 

@@ -18,7 +18,10 @@
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
 import { applyKiroSessionReplay } from "../../utils/kiroSessionReplay.js";
-import { resolveContinuationId, resolveSessionIdentity } from "../../utils/sessionManager.js";
+import {
+  resolveContinuationId,
+  resolveSessionIdentity,
+} from "../../utils/sessionManager.js";
 import {
   resolveKiroModelIntent,
   applyKiroThinkingOverride,
@@ -88,10 +91,16 @@ function convertClaudeMessagesToKiro(messages, model) {
         for (const block of msg.content) {
           if (block.type === CLAUDE_BLOCK.TEXT) {
             pendingUserContent.push(block.text);
-          } else if (block.type === CLAUDE_BLOCK.IMAGE && block.source?.type === "base64") {
+          } else if (
+            block.type === CLAUDE_BLOCK.IMAGE &&
+            block.source?.type === "base64"
+          ) {
             const mediaType = block.source.media_type || DEFAULT_IMAGE_MIME;
             const format = mediaType.split("/")[1] || mediaType;
-            pendingImages.push({ format, source: { bytes: block.source.data } });
+            pendingImages.push({
+              format,
+              source: { bytes: block.source.data },
+            });
           } else if (block.type === CLAUDE_BLOCK.TOOL_RESULT) {
             let resultContent = "";
             if (typeof block.content === "string") {
@@ -171,7 +180,8 @@ function convertClaudeMessagesToKiro(messages, model) {
   for (const current of history) {
     const prev = mergedHistory[mergedHistory.length - 1];
     if (current.userInputMessage && prev?.userInputMessage) {
-      prev.userInputMessage.content += "\n\n" + current.userInputMessage.content;
+      prev.userInputMessage.content +=
+        "\n\n" + current.userInputMessage.content;
       const prevCtx = prev.userInputMessage.userInputMessageContext;
       const curCtx = current.userInputMessage.userInputMessageContext;
       if (curCtx) {
@@ -205,10 +215,13 @@ function extractClaudeSystemText(system) {
   if (!system) return "";
   if (typeof system === "string") return system;
   if (Array.isArray(system)) {
-    return system.map((s) => {
-      if (typeof s === "string") return s;
-      return s?.text || "";
-    }).filter(Boolean).join("\n");
+    return system
+      .map((s) => {
+        if (typeof s === "string") return s;
+        return s?.text || "";
+      })
+      .filter(Boolean)
+      .join("\n");
   }
   return "";
 }
@@ -225,26 +238,43 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
 
   const modelIntent = resolveKiroModelIntent(model);
   const { upstream: upstreamModel, agentic } = modelIntent;
-  const thinkingBody = applyKiroThinkingOverride(body, modelIntent.thinkingOverride);
-  const thinkingBudget = resolveKiroThinkingBudget(thinkingBody, credentials?.rawHeaders, modelIntent.model);
-  const additionalModelRequestFields = buildKiroAdditionalModelRequestFieldsForModel(thinkingBody, upstreamModel);
-  const usesNativeGptEffort = usesKiroNativeGptEffort(thinkingBody, upstreamModel);
+  const thinkingBody = applyKiroThinkingOverride(
+    body,
+    modelIntent.thinkingOverride,
+  );
+  const thinkingBudget = resolveKiroThinkingBudget(
+    thinkingBody,
+    credentials?.rawHeaders,
+    modelIntent.model,
+  );
+  const additionalModelRequestFields =
+    buildKiroAdditionalModelRequestFieldsForModel(thinkingBody, upstreamModel);
+  const usesNativeGptEffort = usesKiroNativeGptEffort(
+    thinkingBody,
+    upstreamModel,
+  );
 
   const { specs: toolSpecs, nameMap } = normalizeKiroToolSpecs(tools);
-  const { history, currentMessage } = convertClaudeMessagesToKiro(messages, upstreamModel);
+  const { history, currentMessage } = convertClaudeMessagesToKiro(
+    messages,
+    upstreamModel,
+  );
 
   // api_key / idc / external_idp must never use the shared default ARN (belongs
   // to another account → 403 "bearer token invalid"); OAuth/social fall back to it.
   const authMethod = credentials?.providerSpecificData?.authMethod;
   const accountBoundAuth =
-    authMethod === "api_key" || authMethod === "idc" || authMethod === "external_idp";
+    authMethod === "api_key" ||
+    authMethod === "idc" ||
+    authMethod === "external_idp";
   const profileArn = accountBoundAuth
-    ? (credentials?.providerSpecificData?.profileArn || "")
-    : (credentials?.providerSpecificData?.profileArn || resolveDefaultProfileArn(authMethod));
+    ? credentials?.providerSpecificData?.profileArn || ""
+    : credentials?.providerSpecificData?.profileArn ||
+      resolveDefaultProfileArn(authMethod);
 
-  // Kiro CLI/KAS sends system prompt as top-level `systemPrompt`. Keep a
-  // content fallback too because the CodeWhisperer surface does not always
-  // enforce top-level systemPrompt for direct calls.
+  // The system prompt travels inside the first user turn's content (contentPrefix):
+  // the CodeWhisperer surface rejects a top-level `systemPrompt` with
+  // 400 REQUEST_BODY_INVALID, so the value below is only a replay cache key.
   const timestamp = new Date().toISOString();
   const systemPromptParts = [];
   if (thinkingBudget !== null && !usesNativeGptEffort) {
@@ -255,7 +285,9 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
   if (systemInstruction) systemPromptParts.push(systemInstruction);
   const systemPrompt = systemPromptParts.filter(Boolean).join("\n\n");
   const currentTimeContext = `[Context: Current time is ${timestamp}]`;
-  const contentPrefix = [systemPrompt, currentTimeContext].filter(Boolean).join("\n\n");
+  const contentPrefix = [systemPrompt, currentTimeContext]
+    .filter(Boolean)
+    .join("\n\n");
 
   const sessionIdentity = resolveSessionIdentity({
     headers: credentials?.rawHeaders,
@@ -296,7 +328,9 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
   // (role:N | pair:N | id:N | spec:N | orphan:0 | current) names the offending
   // turn so the shape can be diagnosed from the log alone.
   if (!canonical.valid) {
-    console.error(`[Kiro] refusing invalid conversation (claude → kiro): ${(canonical.errors || []).join(", ") || "unknown"} | turns=${(canonical.history || []).length + 1}`);
+    console.error(
+      `[Kiro] refusing invalid conversation (claude → kiro): ${(canonical.errors || []).join(", ") || "unknown"} | turns=${(canonical.history || []).length + 1}`,
+    );
     return null;
   }
   const replayCurrent = canonical.currentMessage.userInputMessage;
@@ -316,14 +350,11 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
     conversationState: {
       chatTriggerType: "MANUAL",
       conversationId,
-      agentContinuationId: continuationId,
-      agentTaskType: "vibe",
       currentMessage: {
         userInputMessage,
       },
       history: canonical.history,
     },
-    agentMode: "vibe",
   };
 
   if (profileArn) payload.profileArn = profileArn;
@@ -334,7 +365,8 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
   if (maxTokens || temperature !== undefined || topP !== undefined) {
     payload.inferenceConfig = {};
     if (maxTokens) payload.inferenceConfig.maxTokens = maxTokens;
-    if (temperature !== undefined) payload.inferenceConfig.temperature = temperature;
+    if (temperature !== undefined)
+      payload.inferenceConfig.temperature = temperature;
     if (topP !== undefined) payload.inferenceConfig.topP = topP;
   }
 

@@ -14,21 +14,23 @@ export default {
     },
   },
   category: "oauth",
+  authModes: ["oauth"],
+  hasOAuth: true,
   transport: {
     baseUrl: "https://api.cline.bot/api/v1/chat/completions",
     headers: {
       "HTTP-Referer": "https://cline.bot",
       "X-Title": "Cline",
     },
+    // Non-stream chat completions come back wrapped in {"success":true,"data":{...}}
+    quirks: { clineEnvelope: true },
     tokenUrl: "https://api.cline.bot/api/v1/auth/token",
     refreshUrl: "https://api.cline.bot/api/v1/auth/refresh",
     auth: {
       combined: true,
       header: "Authorization",
       scheme: "bearer",
-      hooks: [
-        "clineHeaders",
-      ],
+      hooks: ["clineHeaders"],
     },
   },
   models: [
@@ -38,7 +40,10 @@ export default {
     { id: "openai/gpt-5.3-codex", name: "GPT-5.3 Codex" },
     { id: "openai/gpt-5.4", name: "GPT-5.4" },
     { id: "google/gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview" },
-    { id: "google/gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash Lite Preview" },
+    {
+      id: "google/gemini-3.1-flash-lite-preview",
+      name: "Gemini 3.1 Flash Lite Preview",
+    },
     { id: "kwaipilot/kat-coder-pro", name: "KAT Coder Pro" },
   ],
   oauth: {

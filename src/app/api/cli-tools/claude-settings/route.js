@@ -52,14 +52,16 @@ const writeClaudeJsonMcp = async (mcpServers) => {
   await fs.writeFile(filePath, JSON.stringify(data, null, 2));
 };
 
-
 // Check if claude CLI is installed (via which/where or config file exists)
 const checkClaudeInstalled = async () => {
   try {
     const isWindows = os.platform() === "win32";
     const command = isWindows ? "where claude" : "which claude";
     const env = isWindows
-      ? { ...process.env, PATH: `${process.env.APPDATA}\\npm;${process.env.PATH}` }
+      ? {
+          ...process.env,
+          PATH: `${process.env.APPDATA}\\npm;${process.env.PATH}`,
+        }
       : process.env;
     await execAsync(command, { windowsHide: true, env });
     return true;
@@ -91,7 +93,7 @@ const readSettings = async () => {
 export async function GET() {
   try {
     const isInstalled = await checkClaudeInstalled();
-    
+
     if (!isInstalled) {
       return NextResponse.json({
         installed: false,
@@ -101,7 +103,7 @@ export async function GET() {
     }
 
     const settings = await readSettings();
-    const has9Router = !!(settings?.env?.ANTHROPIC_BASE_URL);
+    const has9Router = !!settings?.env?.ANTHROPIC_BASE_URL;
     const claudeJson = await readClaudeJson();
 
     return NextResponse.json({
@@ -115,7 +117,7 @@ export async function GET() {
     console.log("Error checking claude settings:", error);
     return NextResponse.json(
       { error: "Failed to check claude settings" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -123,12 +125,12 @@ export async function GET() {
 // POST - Backup old fields and write new settings
 export async function POST(request) {
   try {
-    const { env, exaMcpEnabled, maxContextTokens } = await request.json();
-    
+    const { env, exaMcpEnabled, autoCompactWindow } = await request.json();
+
     if (!env || typeof env !== "object") {
       return NextResponse.json(
         { error: "Invalid env object" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -151,8 +153,8 @@ export async function POST(request) {
 
     // Normalize ANTHROPIC_BASE_URL to ensure /v1 suffix
     if (env.ANTHROPIC_BASE_URL) {
-      env.ANTHROPIC_BASE_URL = env.ANTHROPIC_BASE_URL.endsWith("/v1") 
-        ? env.ANTHROPIC_BASE_URL 
+      env.ANTHROPIC_BASE_URL = env.ANTHROPIC_BASE_URL.endsWith("/v1")
+        ? env.ANTHROPIC_BASE_URL
         : `${env.ANTHROPIC_BASE_URL}/v1`;
     }
 
@@ -166,12 +168,14 @@ export async function POST(request) {
       },
     };
 
-    // CLAUDE_CODE_MAX_CONTEXT_TOKENS — only set when a concrete value is chosen;
-    // "Default" removes the key so Claude Code falls back to the model's window.
-    if (maxContextTokens) {
-      newSettings.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(maxContextTokens);
+    // CLAUDE_CODE_AUTO_COMPACT_WINDOW — the token threshold that triggers
+    // auto-compact. Only set when a concrete value is chosen; "Default" removes
+    // the key so Claude Code derives the window from the model.
+    if (autoCompactWindow) {
+      newSettings.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW =
+        String(autoCompactWindow);
     } else {
-      delete newSettings.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS;
+      delete newSettings.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
     }
 
     // Write new settings
@@ -179,7 +183,9 @@ export async function POST(request) {
 
     // Exa MCP toggle — write to ~/.claude.json (CLI reads mcpServers from here).
     if (EXA_PLUGIN) {
-      await writeClaudeJsonMcp(exaMcpEnabled ? { exa: buildExaMcpEntry() } : null);
+      await writeClaudeJsonMcp(
+        exaMcpEnabled ? { exa: buildExaMcpEntry() } : null,
+      );
     }
 
     return NextResponse.json({
@@ -190,7 +196,7 @@ export async function POST(request) {
     console.log("Error updating claude settings:", error);
     return NextResponse.json(
       { error: "Failed to update claude settings" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -203,7 +209,7 @@ const RESET_ENV_KEYS = [
   "ANTHROPIC_DEFAULT_SONNET_MODEL",
   "ANTHROPIC_DEFAULT_HAIKU_MODEL",
   "API_TIMEOUT_MS",
-  "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+  "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
 ];
 
 // DELETE - Reset settings (remove env fields)
@@ -231,7 +237,7 @@ export async function DELETE() {
       RESET_ENV_KEYS.forEach((key) => {
         delete currentSettings.env[key];
       });
-      
+
       // Clean up empty env object
       if (Object.keys(currentSettings.env).length === 0) {
         delete currentSettings.env;
@@ -252,7 +258,7 @@ export async function DELETE() {
     console.log("Error resetting claude settings:", error);
     return NextResponse.json(
       { error: "Failed to reset claude settings" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

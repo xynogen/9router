@@ -14,7 +14,10 @@ export default {
     },
   },
   category: "oauth",
-  authModes: ["oauth", "apikey"],
+  // ClinePass authenticates with a plain API key from app.cline.bot/settings/api-keys
+  // (category "apikey"). The OAuth extension flow used by Cline does not issue
+  // tokens that the ClinePass API consumer endpoint accepts (HTTP 401) — see #2333.
+  authModes: ["apikey", "oauth"],
   hasOAuth: true,
   transport: {
     baseUrl: "https://api.cline.bot/api/v1/chat/completions",
@@ -22,13 +25,13 @@ export default {
       "HTTP-Referer": "https://cline.bot",
       "X-Title": "Cline",
     },
+    // Non-stream chat completions come back wrapped in {"success":true,"data":{...}}
+    quirks: { clineEnvelope: true },
     auth: {
       combined: true,
       header: "Authorization",
       scheme: "bearer",
-      hooks: [
-        "clineHeaders",
-      ],
+      hooks: ["clineHeaders"],
     },
   },
   models: [
@@ -36,7 +39,10 @@ export default {
     { id: "cline-pass/kimi-k2.7-code", name: "Kimi K2.7 Code (ClinePass)" },
     { id: "cline-pass/kimi-k2.6", name: "Kimi K2.6 (ClinePass)" },
     { id: "cline-pass/deepseek-v4-pro", name: "DeepSeek V4 Pro (ClinePass)" },
-    { id: "cline-pass/deepseek-v4-flash", name: "DeepSeek V4 Flash (ClinePass)" },
+    {
+      id: "cline-pass/deepseek-v4-flash",
+      name: "DeepSeek V4 Flash (ClinePass)",
+    },
     { id: "cline-pass/mimo-v2.5", name: "MiMo-V2.5 (ClinePass)" },
     { id: "cline-pass/mimo-v2.5-pro", name: "MiMo-V2.5-Pro (ClinePass)" },
     { id: "cline-pass/minimax-m3", name: "MiniMax M3 (ClinePass)" },

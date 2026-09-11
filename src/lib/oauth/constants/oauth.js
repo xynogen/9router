@@ -2,8 +2,14 @@
  * OAuth Configuration Constants — static data lives in registry, re-exported here for consumers.
  */
 import { platform, arch } from "os";
-import { ANTIGRAVITY_OAUTH_CLIENT, GOOGLE_OAUTH_CLIENT } from "open-sse/providers/shared.js";
-import { PROVIDER_OAUTH, PROVIDERS as REGISTRY_PROVIDERS } from "open-sse/providers/index.js";
+import {
+  ANTIGRAVITY_OAUTH_CLIENT,
+  GOOGLE_OAUTH_CLIENT,
+} from "open-sse/providers/shared.js";
+import {
+  PROVIDER_OAUTH,
+  PROVIDERS as REGISTRY_PROVIDERS,
+} from "open-sse/providers/index.js";
 
 /**
  * Get the platform enum value based on the current OS.
@@ -26,7 +32,10 @@ export const CODEX_CONFIG = { ...PROVIDER_OAUTH["codex"] };
 
 // Gemini (Google) OAuth Configuration (Standard OAuth2)
 // clientId/clientSecret from GOOGLE_OAUTH_CLIENT (shared.js) — not stored in registry
-export const GEMINI_CONFIG = { ...GOOGLE_OAUTH_CLIENT, ...PROVIDER_OAUTH["gemini-cli"] };
+export const GEMINI_CONFIG = {
+  ...GOOGLE_OAUTH_CLIENT,
+  ...PROVIDER_OAUTH["gemini-cli"],
+};
 
 // Qoder OAuth Configuration (Device Token Flow with PKCE).
 // Device tokens are long-lived (~30 days for access, ~360 for refresh).
@@ -44,7 +53,11 @@ export const IFLOW_CONFIG = { ...PROVIDER_OAUTH["iflow"] };
 export const ANTIGRAVITY_CONFIG = {
   ...ANTIGRAVITY_OAUTH_CLIENT,
   ...PROVIDER_OAUTH["antigravity"],
-  loadCodeAssistClientMetadata: JSON.stringify({ ideType: 9, platform: getOAuthPlatformEnum(), pluginType: 2 }),
+  loadCodeAssistClientMetadata: JSON.stringify({
+    ideType: 9,
+    platform: getOAuthPlatformEnum(),
+    pluginType: 2,
+  }),
 };
 
 /**
@@ -81,7 +94,8 @@ export const CURSOR_CONFIG = {
   ...PROVIDER_OAUTH["cursor"],
   tokenStoragePaths: {
     linux: "~/.config/Cursor/User/globalStorage/state.vscdb",
-    macos: "/Users/<user>/Library/Application Support/Cursor/User/globalStorage/state.vscdb",
+    macos:
+      "/Users/<user>/Library/Application Support/Cursor/User/globalStorage/state.vscdb",
     windows: "%APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb",
   },
 };
@@ -130,6 +144,22 @@ export const GROK_CLI_CONFIG = { ...PROVIDER_OAUTH["grok-cli"] };
 //   3) Redirect → ${cb}?refreshToken=...&loginHost=...&isRedirect=true
 //   4) POST ExchangeToken {ClientID, RefreshToken, ClientSecret:"-"} → {Result.AccessToken, ExpiresAt}
 //   5) POST GetUserInfo (x-cloudide-token) → email/name
+// Xiaomi MiMo Desktop OAuth — custom ECDH encrypted-callback flow (NOT standard OAuth2).
+//   1) Client generates X25519 keypair
+//   2) Browser opens ${platformUrl}/authorize?pk=<pubkey>&redirect_uri=http://localhost:<port>/&kn=mimocode&key_name=...
+//   3) Redirect → http://localhost:<port>/?u=<base64 encrypted payload>
+//   4) Decrypt: ECDH(shared) → SHA256 → AES-256-GCM
+//      Layout: [12-byte nonce][32-byte ephemeral pubkey][ciphertext][16-byte GCM tag]
+//   5) Result JSON: { uid, sk, url }
+export const XIAOMI_MIMO_CONFIG = {
+  platformUrl:
+    process.env.MIMO_PLATFORM_URL || "https://platform.xiaomimimo.com",
+  defaultBaseUrl: "https://api.xiaomimimo.com/v1",
+  kn: "mimocode",
+  callbackPath: "/",
+  timeoutMs: 300000, // 5 minutes
+};
+
 export const TRAE_CONFIG = {
   clientId: "ono9krqynydwx5",
   clientSecret: "-",
@@ -172,8 +202,10 @@ export const WINDSURF_CONFIG = {
   signInPath: "/windsurf/signin",
   registerApiBaseUrl: "https://register.windsurf.com",
   registerPath: "/exa.seat_management_pb.SeatManagementService/RegisterUser",
-  oneTimeAuthPath: "/exa.seat_management_pb.SeatManagementService/GetOneTimeAuthToken",
-  currentUserPath: "/exa.seat_management_pb.SeatManagementService/GetCurrentUser",
+  oneTimeAuthPath:
+    "/exa.seat_management_pb.SeatManagementService/GetOneTimeAuthToken",
+  currentUserPath:
+    "/exa.seat_management_pb.SeatManagementService/GetCurrentUser",
   planStatusPath: "/exa.seat_management_pb.SeatManagementService/GetPlanStatus",
   userStatusPath: "/exa.seat_management_pb.SeatManagementService/GetUserStatus",
   defaultApiServerUrl: "https://server.codeium.com",

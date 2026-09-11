@@ -6,33 +6,74 @@ import { OPENAI_BLOCK } from "../schema/index.js";
 // Unsupported JSON Schema constraints that should be removed for Antigravity
 export const UNSUPPORTED_SCHEMA_CONSTRAINTS = [
   // Basic constraints (not supported by Gemini API)
-  "minLength", "maxLength", "exclusiveMinimum", "exclusiveMaximum",
-  "minItems", "maxItems", "format", "multipleOf",
+  "minLength",
+  "maxLength",
+  "exclusiveMinimum",
+  "exclusiveMaximum",
+  "minItems",
+  "maxItems",
+  "format",
+  "multipleOf",
   // Array keywords the Gemini schema proto has no field for. Agent tool
   // schemas set these routinely, and one occurrence rejects the whole request
   // with "Unknown name ...: Cannot find field".
-  "uniqueItems", "contains",
+  "uniqueItems",
+  "contains",
   // 2020-12 keywords with no Gemini equivalent
-  "unevaluatedProperties", "unevaluatedItems", "contentSchema",
+  "unevaluatedProperties",
+  "unevaluatedItems",
+  "contentSchema",
   // Tuple-array keywords; converted to items first, leftovers stripped
-  "prefixItems", "additionalItems",
+  "prefixItems",
+  "additionalItems",
   // Claude rejects these in VALIDATED mode
-  "default", "examples",
+  "default",
+  "examples",
   // JSON Schema meta keywords
-  "$schema", "$defs", "definitions", "const", "$ref", "$comment",
+  "$schema",
+  "$defs",
+  "definitions",
+  "const",
+  "$ref",
+  "$comment",
   // Annotation keywords (rejected by Gemini/Antigravity - e.g. MCP tool schemas set these)
-  "deprecated", "readOnly", "writeOnly",
+  "deprecated",
+  "readOnly",
+  "writeOnly",
   // Object validation keywords (not supported)
-  "additionalProperties", "propertyNames", "patternProperties", "enumDescriptions",
+  "additionalProperties",
+  "propertyNames",
+  "patternProperties",
+  "enumDescriptions",
   // Complex schema keywords (handled by flattenAnyOfOneOf/mergeAllOf)
-  "anyOf", "oneOf", "allOf", "not",
+  "anyOf",
+  "oneOf",
+  "allOf",
+  "not",
   // Dependency keywords (not supported)
-  "dependencies", "dependentSchemas", "dependentRequired",
+  "dependencies",
+  "dependentSchemas",
+  "dependentRequired",
   // Other unsupported keywords
-  "title", "optional", "deprecated", "if", "then", "else", "contentMediaType", "contentEncoding",
+  "title",
+  "optional",
+  "deprecated",
+  "if",
+  "then",
+  "else",
+  "contentMediaType",
+  "contentEncoding",
   // UI/Styling properties (from Cursor tools - NOT JSON Schema standard)
-  "cornerRadius", "fillColor", "fontFamily", "fontSize", "fontWeight",
-  "gap", "padding", "strokeColor", "strokeThickness", "textColor"
+  "cornerRadius",
+  "fillColor",
+  "fontFamily",
+  "fontSize",
+  "fontWeight",
+  "gap",
+  "padding",
+  "strokeColor",
+  "strokeThickness",
+  "textColor",
 ];
 
 // Default safety settings
@@ -41,7 +82,7 @@ export const DEFAULT_SAFETY_SETTINGS = [
   { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "OFF" },
   { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "OFF" },
   { category: "HARM_CATEGORY_HARASSMENT", threshold: "OFF" },
-  { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "OFF" }
+  { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "OFF" },
 ];
 
 // Convert OpenAI content to Gemini parts
@@ -54,7 +95,10 @@ export function convertOpenAIContentToParts(content) {
     for (const item of content) {
       if (item.type === OPENAI_BLOCK.TEXT) {
         parts.push({ text: item.text });
-      } else if (item.type === OPENAI_BLOCK.IMAGE_URL && item.image_url?.url?.startsWith("data:")) {
+      } else if (
+        item.type === OPENAI_BLOCK.IMAGE_URL &&
+        item.image_url?.url?.startsWith("data:")
+      ) {
         const url = item.image_url.url;
         const commaIndex = url.indexOf(",");
         if (commaIndex !== -1) {
@@ -63,20 +107,31 @@ export function convertOpenAIContentToParts(content) {
           const mimeType = mimePart.split(";")[0];
 
           parts.push({
-            inlineData: { mime_type: mimeType, data: data }
+            inlineData: { mime_type: mimeType, data: data },
           });
         }
-      } else if (item.type === OPENAI_BLOCK.IMAGE_URL && item.image_url?.url && (item.image_url.url.startsWith("http://") || item.image_url.url.startsWith("https://"))) {
+      } else if (
+        item.type === OPENAI_BLOCK.IMAGE_URL &&
+        item.image_url?.url &&
+        (item.image_url.url.startsWith("http://") ||
+          item.image_url.url.startsWith("https://"))
+      ) {
         parts.push({
-          fileData: { fileUri: item.image_url.url, mimeType: "image/*" }
+          fileData: { fileUri: item.image_url.url, mimeType: "image/*" },
         });
-      } else if (item.type === OPENAI_BLOCK.INPUT_AUDIO && item.input_audio?.data) {
+      } else if (
+        item.type === OPENAI_BLOCK.INPUT_AUDIO &&
+        item.input_audio?.data
+      ) {
         const format = item.input_audio.format || "wav";
         const mimeType = format === "mp3" ? "audio/mpeg" : `audio/${format}`;
         parts.push({
-          inlineData: { mime_type: mimeType, data: item.input_audio.data }
+          inlineData: { mime_type: mimeType, data: item.input_audio.data },
         });
-      } else if (item.type === OPENAI_BLOCK.AUDIO_URL && item.audio_url?.url?.startsWith("data:")) {
+      } else if (
+        item.type === OPENAI_BLOCK.AUDIO_URL &&
+        item.audio_url?.url?.startsWith("data:")
+      ) {
         const url = item.audio_url.url;
         const commaIndex = url.indexOf(",");
         if (commaIndex !== -1) {
@@ -84,10 +139,13 @@ export function convertOpenAIContentToParts(content) {
           const data = url.substring(commaIndex + 1);
           const mimeType = mimePart.split(";")[0];
           parts.push({
-            inlineData: { mime_type: mimeType, data: data }
+            inlineData: { mime_type: mimeType, data: data },
           });
         }
-      } else if (item.type === OPENAI_BLOCK.FILE && item.file?.file_data?.startsWith("data:")) {
+      } else if (
+        item.type === OPENAI_BLOCK.FILE &&
+        item.file?.file_data?.startsWith("data:")
+      ) {
         const url = item.file.file_data;
         const commaIndex = url.indexOf(",");
         if (commaIndex !== -1) {
@@ -106,7 +164,10 @@ export function convertOpenAIContentToParts(content) {
 export function extractTextContent(content, separator = "") {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
-    return content.filter(c => c.type === OPENAI_BLOCK.TEXT).map(c => c.text).join(separator);
+    return content
+      .filter((c) => c.type === OPENAI_BLOCK.TEXT)
+      .map((c) => c.text)
+      .join(separator);
   }
   return "";
 }
@@ -181,7 +242,7 @@ function convertEnumValuesToStrings(obj) {
   if (!obj || typeof obj !== "object") return;
 
   if (obj.enum && Array.isArray(obj.enum)) {
-    obj.enum = obj.enum.map(v => String(v));
+    obj.enum = obj.enum.map((v) => String(v));
     // Gemini API requires type:"string" when enum is present — without it returns 400
     if (!obj.type) {
       obj.type = "string";
@@ -218,8 +279,10 @@ function mergeAllOf(obj) {
     }
 
     delete obj.allOf;
-    if (merged.properties) obj.properties = { ...obj.properties, ...merged.properties };
-    if (merged.required) obj.required = [...(obj.required || []), ...merged.required];
+    if (merged.properties)
+      obj.properties = { ...obj.properties, ...merged.properties };
+    if (merged.required)
+      obj.required = [...(obj.required || []), ...merged.required];
   }
 
   for (const value of Object.values(obj)) {
@@ -261,7 +324,7 @@ function flattenAnyOfOneOf(obj) {
   if (!obj || typeof obj !== "object") return;
 
   if (obj.anyOf && Array.isArray(obj.anyOf) && obj.anyOf.length > 0) {
-    const nonNullSchemas = obj.anyOf.filter(s => s && s.type !== "null");
+    const nonNullSchemas = obj.anyOf.filter((s) => s && s.type !== "null");
     if (nonNullSchemas.length > 0) {
       const bestIdx = selectBest(nonNullSchemas);
       const selected = nonNullSchemas[bestIdx];
@@ -271,7 +334,7 @@ function flattenAnyOfOneOf(obj) {
   }
 
   if (obj.oneOf && Array.isArray(obj.oneOf) && obj.oneOf.length > 0) {
-    const nonNullSchemas = obj.oneOf.filter(s => s && s.type !== "null");
+    const nonNullSchemas = obj.oneOf.filter((s) => s && s.type !== "null");
     if (nonNullSchemas.length > 0) {
       const bestIdx = selectBest(nonNullSchemas);
       const selected = nonNullSchemas[bestIdx];
@@ -292,7 +355,7 @@ function flattenTypeArrays(obj) {
   if (!obj || typeof obj !== "object") return;
 
   if (obj.type && Array.isArray(obj.type)) {
-    const nonNullTypes = obj.type.filter(t => t !== "null");
+    const nonNullTypes = obj.type.filter((t) => t !== "null");
     obj.type = nonNullTypes.length > 0 ? nonNullTypes[0] : "string";
   }
 
@@ -307,7 +370,8 @@ function flattenTypeArrays(obj) {
 function ensureObjectType(obj) {
   if (!obj || typeof obj !== "object") return;
   if (obj.properties && !obj.type) obj.type = "object";
-  for (const v of Object.values(obj)) if (v && typeof v === "object") ensureObjectType(v);
+  for (const v of Object.values(obj))
+    if (v && typeof v === "object") ensureObjectType(v);
 }
 
 // Convert prefixItems (tuple validation) to items — Gemini cannot express tuples,
@@ -316,7 +380,7 @@ function convertPrefixItems(obj) {
   if (!obj || typeof obj !== "object") return;
 
   if (Array.isArray(obj.prefixItems) && obj.prefixItems.length > 0) {
-    const variants = obj.prefixItems.filter(s => s && s.type !== "null");
+    const variants = obj.prefixItems.filter((s) => s && s.type !== "null");
     if (!obj.items && variants.length === 1) {
       obj.items = variants[0];
     } else if (!obj.items && variants.length > 1) {
@@ -338,7 +402,8 @@ function ensureArrayItems(obj) {
   if (obj.type === "array" && !obj.items) {
     obj.items = { type: "string" };
   }
-  for (const v of Object.values(obj)) if (v && typeof v === "object") ensureArrayItems(v);
+  for (const v of Object.values(obj))
+    if (v && typeof v === "object") ensureArrayItems(v);
 }
 
 // Clean JSON Schema for Antigravity API compatibility - removes unsupported keywords recursively
@@ -370,8 +435,8 @@ export function cleanJSONSchemaForAntigravity(schema) {
     if (!obj || typeof obj !== "object") return;
 
     if (obj.required && Array.isArray(obj.required) && obj.properties) {
-      const validRequired = obj.required.filter(field =>
-        Object.prototype.hasOwnProperty.call(obj.properties, field)
+      const validRequired = obj.required.filter((field) =>
+        Object.prototype.hasOwnProperty.call(obj.properties, field),
       );
       if (validRequired.length === 0) {
         delete obj.required;
@@ -400,8 +465,8 @@ export function cleanJSONSchemaForAntigravity(schema) {
       obj.properties = {
         reason: {
           type: "string",
-          description: "Brief explanation of why you are calling this tool"
-        }
+          description: "Brief explanation of why you are calling this tool",
+        },
       };
       obj.required = ["reason"];
       return;
@@ -412,8 +477,8 @@ export function cleanJSONSchemaForAntigravity(schema) {
         obj.properties = {
           reason: {
             type: "string",
-            description: "Brief explanation of why you are calling this tool"
-          }
+            description: "Brief explanation of why you are calling this tool",
+          },
         };
         obj.required = ["reason"];
       }
@@ -432,3 +497,19 @@ export function cleanJSONSchemaForAntigravity(schema) {
   return cleaned;
 }
 
+// Merge adjacent same-role messages, strip empty parts, ensure initial user turn
+export function normalizeGeminiContents(contents) {
+  const out = [];
+  for (const c of contents || []) {
+    if (!c?.role || !Array.isArray(c.parts)) continue;
+    const parts = c.parts.filter((p) => p && Object.keys(p).length > 0);
+    if (parts.length === 0) continue;
+    const last = out.at(-1);
+    if (last?.role === c.role) last.parts.push(...parts);
+    else out.push({ ...c, parts: [...parts] });
+  }
+  if (out.length > 0 && out[0].role !== "user") {
+    out.unshift({ role: "user", parts: [{ text: "..." }] });
+  }
+  return out;
+}

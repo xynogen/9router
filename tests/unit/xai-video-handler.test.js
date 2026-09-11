@@ -15,7 +15,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const authMocks = vi.hoisted(() => ({
   getProviderCredentials: vi.fn(),
-  markAccountUnavailable: vi.fn(async () => ({ shouldFallback: true, cooldownMs: 0 })),
+  markAccountUnavailable: vi.fn(async () => ({
+    shouldFallback: true,
+    cooldownMs: 0,
+  })),
   clearAccountError: vi.fn(async () => {}),
   extractApiKey: vi.fn(() => null),
   isValidApiKey: vi.fn(async () => true),
@@ -29,20 +32,38 @@ vi.mock("@/sse/services/auth.js", () => authMocks);
 vi.mock("@/sse/services/tokenRefresh.js", () => tokenMocks);
 vi.mock("@/lib/localDb", () => ({
   getSettings: vi.fn(async () => ({ requireApiKey: false })),
+  getProviderConnectionById: vi.fn(async () => ({
+    id: "conn-5",
+    provider: "xai",
+  })),
   getComboByName: vi.fn(async () => null),
   getModelAliases: vi.fn(async () => ({})),
   getProviderNodes: vi.fn(async () => []),
 }));
-vi.mock("@/sse/utils/logger.js", () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }));
+vi.mock("@/sse/utils/logger.js", () => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}));
 
-import { handleVideoCreate, handleVideoGet } from "@/sse/handlers/videoGeneration.js";
+import {
+  handleVideoCreate,
+  handleVideoGet,
+} from "@/sse/handlers/videoGeneration.js";
 
 const originalFetch = global.fetch;
 
 const jsonResponse = (body, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 
-const makeRequest = (body, { headers = {}, contentType = "application/json" } = {}) =>
+const makeRequest = (
+  body,
+  { headers = {}, contentType = "application/json" } = {},
+) =>
   new Request("http://localhost/v1/videos/generations", {
     method: "POST",
     headers: { "Content-Type": contentType, ...headers },
@@ -76,7 +97,7 @@ describe("handleVideoCreate", () => {
 
     const res = await handleVideoCreate(
       makeRequest({ model: "xai/grok-imagine-video", prompt: "a cat" }),
-      "generations"
+      "generations",
     );
 
     expect(res.status).toBe(200);
@@ -99,7 +120,7 @@ describe("handleVideoCreate", () => {
   it("rejects providers without video support", async () => {
     const res = await handleVideoCreate(
       makeRequest({ model: "openai/sora-alike", prompt: "x" }),
-      "generations"
+      "generations",
     );
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("does not support video generation");
@@ -107,10 +128,15 @@ describe("handleVideoCreate", () => {
   });
 
   it("returns the serving connection id in x-9router-connection-id", async () => {
-    authMocks.getProviderCredentials.mockResolvedValueOnce(account({ connectionId: "conn-77" }));
+    authMocks.getProviderCredentials.mockResolvedValueOnce(
+      account({ connectionId: "conn-77" }),
+    );
     global.fetch.mockResolvedValueOnce(jsonResponse({ request_id: "r1" }));
 
-    const res = await handleVideoCreate(makeRequest({ prompt: "x" }), "generations");
+    const res = await handleVideoCreate(
+      makeRequest({ prompt: "x" }),
+      "generations",
+    );
     expect(res.headers.get("x-9router-connection-id")).toBe("conn-77");
     expect(await res.json()).toEqual({ request_id: "r1" });
   });
@@ -120,37 +146,63 @@ describe("handleVideoCreate", () => {
     global.fetch.mockResolvedValueOnce(jsonResponse({ request_id: "r1" }));
 
     await handleVideoCreate(
-      makeRequest({ prompt: "x" }, { headers: { "x-connection-id": "conn-9" } }),
-      "generations"
+      makeRequest(
+        { prompt: "x" },
+        { headers: { "x-connection-id": "conn-9" } },
+      ),
+      "generations",
     );
 
     expect(authMocks.getProviderCredentials).toHaveBeenCalledWith(
-      "xai", expect.anything(), null, expect.objectContaining({ preferredConnectionId: "conn-9" })
+      "xai",
+      expect.anything(),
+      null,
+      expect.objectContaining({ preferredConnectionId: "conn-9" }),
     );
   });
 
   it("rotates to the next account on 401 (auth errors cannot have created a job)", async () => {
     authMocks.getProviderCredentials
-      .mockResolvedValueOnce(account({ connectionId: "conn-1", refreshToken: null }))
-      .mockResolvedValueOnce(account({ connectionId: "conn-2", accessToken: "tok-2", refreshToken: null }));
+      .mockResolvedValueOnce(
+        account({ connectionId: "conn-1", refreshToken: null }),
+      )
+      .mockResolvedValueOnce(
+        account({
+          connectionId: "conn-2",
+          accessToken: "tok-2",
+          refreshToken: null,
+        }),
+      );
     global.fetch
       .mockResolvedValueOnce(jsonResponse({ error: "unauthorized" }, 401))
       .mockResolvedValueOnce(jsonResponse({ request_id: "r2" }));
 
-    const res = await handleVideoCreate(makeRequest({ prompt: "x" }), "generations");
+    const res = await handleVideoCreate(
+      makeRequest({ prompt: "x" }),
+      "generations",
+    );
 
     expect(res.status).toBe(200);
     expect(res.headers.get("x-9router-connection-id")).toBe("conn-2");
     expect(authMocks.markAccountUnavailable).toHaveBeenCalledWith(
-      "conn-1", 401, expect.any(String), "xai", null
+      "conn-1",
+      401,
+      expect.any(String),
+      "xai",
+      null,
     );
   });
 
   it("does NOT rotate accounts on a 500 creation error (job may exist upstream)", async () => {
-    authMocks.getProviderCredentials.mockResolvedValueOnce(account({ refreshToken: null }));
+    authMocks.getProviderCredentials.mockResolvedValueOnce(
+      account({ refreshToken: null }),
+    );
     global.fetch.mockResolvedValueOnce(jsonResponse({ error: "boom" }, 500));
 
-    const res = await handleVideoCreate(makeRequest({ prompt: "x" }), "generations");
+    const res = await handleVideoCreate(
+      makeRequest({ prompt: "x" }),
+      "generations",
+    );
 
     expect(res.status).toBe(500);
     expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -180,21 +232,31 @@ describe("handleVideoCreate", () => {
 
   it("returns 400 when no credentials are connected", async () => {
     authMocks.getProviderCredentials.mockResolvedValueOnce(null);
-    const res = await handleVideoCreate(makeRequest({ prompt: "x" }), "generations");
+    const res = await handleVideoCreate(
+      makeRequest({ prompt: "x" }),
+      "generations",
+    );
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("No credentials for provider: xai");
   });
 
   it("returns 400 on invalid JSON", async () => {
-    const res = await handleVideoCreate(makeRequest("{not json"), "generations");
+    const res = await handleVideoCreate(
+      makeRequest("{not json"),
+      "generations",
+    );
     expect(res.status).toBe(400);
   });
 });
 
 describe("handleVideoGet", () => {
   it("polls upstream pinned to the x-connection-id account and passes status through", async () => {
-    authMocks.getProviderCredentials.mockResolvedValueOnce(account({ connectionId: "conn-5" }));
-    global.fetch.mockResolvedValueOnce(jsonResponse({ status: "pending", progress: 42 }));
+    authMocks.getProviderCredentials.mockResolvedValueOnce(
+      account({ connectionId: "conn-5" }),
+    );
+    global.fetch.mockResolvedValueOnce(
+      jsonResponse({ status: "pending", progress: 42 }),
+    );
 
     const req = new Request("http://localhost/v1/videos/req-1", {
       headers: { "x-connection-id": "conn-5" },
@@ -204,16 +266,28 @@ describe("handleVideoGet", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: "pending", progress: 42 });
     expect(authMocks.getProviderCredentials).toHaveBeenCalledWith(
-      "xai", null, null, expect.objectContaining({ preferredConnectionId: "conn-5" })
+      "xai",
+      null,
+      null,
+      expect.objectContaining({ preferredConnectionId: "conn-5" }),
     );
-    expect(global.fetch.mock.calls[0][0]).toBe("https://api.x.ai/v1/videos/req-1");
+    expect(global.fetch.mock.calls[0][0]).toBe(
+      "https://api.x.ai/v1/videos/req-1",
+    );
   });
 
   it("records the failure when polling hits a terminal auth error", async () => {
-    authMocks.getProviderCredentials.mockResolvedValueOnce(account({ refreshToken: null }));
-    global.fetch.mockResolvedValueOnce(jsonResponse({ error: "unauthorized" }, 401));
+    authMocks.getProviderCredentials.mockResolvedValueOnce(
+      account({ refreshToken: null }),
+    );
+    global.fetch.mockResolvedValueOnce(
+      jsonResponse({ error: "unauthorized" }, 401),
+    );
 
-    const res = await handleVideoGet(new Request("http://localhost/v1/videos/req-1"), "req-1");
+    const res = await handleVideoGet(
+      new Request("http://localhost/v1/videos/req-1"),
+      "req-1",
+    );
 
     expect(res.status).toBe(401);
     expect(authMocks.markAccountUnavailable).toHaveBeenCalled();

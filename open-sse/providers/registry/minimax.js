@@ -11,7 +11,8 @@ export default {
     textIcon: "MM",
     website: "https://www.minimaxi.com",
     notice: {
-      apiKeyUrl: "https://platform.minimaxi.com/user-center/basic-information/interface-key",
+      apiKeyUrl:
+        "https://platform.minimaxi.com/user-center/basic-information/interface-key",
     },
   },
   category: "apikey",
@@ -22,6 +23,7 @@ export default {
     headers: { ...CLAUDE_API_HEADERS },
     quirks: {
       dropOutputConfig: true,
+      requireClaudeToolType: true,
     },
     reasoningInject: {
       scope: "all",
@@ -58,7 +60,12 @@ export default {
     { id: "MiniMax-M2.7", name: "MiniMax M2.7" },
     { id: "MiniMax-M2.5", name: "MiniMax M2.5" },
     { id: "MiniMax-M2.1", name: "MiniMax M2.1" },
-    { id: "minimax-image-01", name: "MiniMax Image 01", params: ["n","size","response_format"], kind: "image" },
+    {
+      id: "minimax-image-01",
+      name: "MiniMax Image 01",
+      params: ["n", "size", "response_format"],
+      kind: "image",
+    },
     { id: "speech-2.8-hd", name: "Speech 2.8 HD", kind: "tts" },
     { id: "speech-2.8-turbo", name: "Speech 2.8 Turbo", kind: "tts" },
     { id: "speech-2.6-hd", name: "Speech 2.6 HD", kind: "tts" },
@@ -68,8 +75,13 @@ export default {
     { id: "speech-01-hd", name: "Speech 01 HD", kind: "tts" },
     { id: "speech-01-turbo", name: "Speech 01 Turbo", kind: "tts" },
   ],
-  serviceKinds: ["llm","image","imageToText","webSearch","tts"],
-  ttsConfig: { baseUrl: "https://api.minimax.io/v1/t2a_v2", authType: "apikey", authHeader: "bearer", format: "minimax-tts" },
+  serviceKinds: ["llm", "image", "imageToText", "webSearch", "tts"],
+  ttsConfig: {
+    baseUrl: "https://api.minimax.io/v1/t2a_v2",
+    authType: "apikey",
+    authHeader: "bearer",
+    format: "minimax-tts",
+  },
   imageConfig: { baseUrl: "https://api.minimaxi.com/v1/images/generations" },
   searchViaChat: {
     defaultModel: "MiniMax-M2.7",

@@ -82,7 +82,9 @@ async function exchangeJobToken(pat, proxyOptions = null, signal = null) {
   );
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`qoder PAT exchange failed: ${res.status} ${text.slice(0, 200)}`);
+    throw new Error(
+      `qoder PAT exchange failed: ${res.status} ${text.slice(0, 200)}`,
+    );
   }
   const data = await res.json();
   if (!data.token) throw new Error("qoder PAT exchange returned no job token");
@@ -94,14 +96,22 @@ async function exchangeJobToken(pat, proxyOptions = null, signal = null) {
   } else if (typeof data.expires_in === "number" && data.expires_in > 0) {
     expiresAt = Date.now() + data.expires_in;
   }
-  return { jobToken: data.token, jobRefreshToken: data.refresh_token || "", expiresAt };
+  return {
+    jobToken: data.token,
+    jobRefreshToken: data.refresh_token || "",
+    expiresAt,
+  };
 }
 
 /**
  * Resolve the Qoder userId for a job token (needed for COSY signing).
  * Returns "" on any failure — callers fall back to the stored userId.
  */
-async function fetchUserIdForJobToken(jobToken, proxyOptions = null, signal = null) {
+async function fetchUserIdForJobToken(
+  jobToken,
+  proxyOptions = null,
+  signal = null,
+) {
   try {
     const res = await proxyAwareFetch(
       QODER_USERINFO_URL,
@@ -129,9 +139,14 @@ async function fetchUserIdForJobToken(jobToken, proxyOptions = null, signal = nu
  */
 async function resolvePatCredential(pat, proxyOptions = null, signal = null) {
   const cached = patJobCache.get(pat);
-  if (cached && cached.expiresAt - Date.now() > PAT_REFRESH_BUFFER_MS) return cached;
+  if (cached && cached.expiresAt - Date.now() > PAT_REFRESH_BUFFER_MS)
+    return cached;
 
-  const { jobToken, expiresAt } = await exchangeJobToken(pat, proxyOptions, signal);
+  const { jobToken, expiresAt } = await exchangeJobToken(
+    pat,
+    proxyOptions,
+    signal,
+  );
   const userId = await fetchUserIdForJobToken(jobToken, proxyOptions, signal);
   const resolved = { accessToken: jobToken, userId, expiresAt };
   patJobCache.set(pat, resolved);
@@ -143,7 +158,11 @@ async function resolvePatCredential(pat, proxyOptions = null, signal = null) {
  *   - PAT (pt-...) connections → exchanged to a job token (jt-...) + userId
  *   - everything else → passed through unchanged
  */
-export async function resolveQoderCredentials(credentials, proxyOptions = null, signal = null) {
+export async function resolveQoderCredentials(
+  credentials,
+  proxyOptions = null,
+  signal = null,
+) {
   const raw = credentials?.apiKey || credentials?.accessToken;
   if (isQoderPat(raw)) {
     const resolved = await resolvePatCredential(raw, proxyOptions, signal);
@@ -154,7 +173,8 @@ export async function resolveQoderCredentials(credentials, proxyOptions = null, 
       providerSpecificData: {
         authMethod: "pat",
         ...(credentials?.providerSpecificData || {}),
-        userId: resolved.userId || credentials?.providerSpecificData?.userId || "",
+        userId:
+          resolved.userId || credentials?.providerSpecificData?.userId || "",
         machineId: credentials?.providerSpecificData?.machineId || "",
       },
     };
@@ -168,7 +188,11 @@ export async function resolveQoderCredentials(credentials, proxyOptions = null, 
  */
 function cacheKey(credentials) {
   const psd = credentials?.providerSpecificData || {};
-  const seed = psd.userId || credentials?.refreshToken || credentials?.accessToken || "anonymous";
+  const seed =
+    psd.userId ||
+    credentials?.refreshToken ||
+    credentials?.accessToken ||
+    "anonymous";
   return createHash("sha256").update(`qoder:${seed}`).digest("hex");
 }
 
@@ -236,7 +260,8 @@ async function fetchQoderCatalogRaw(credentials, signal, proxyOptions = null) {
     );
   } finally {
     if (timer) clearTimeout(timer);
-    if (signal && abortListener) signal.removeEventListener("abort", abortListener);
+    if (signal && abortListener)
+      signal.removeEventListener("abort", abortListener);
   }
 
   if (!response.ok) return null;
@@ -295,12 +320,17 @@ export async function getQoderModelConfig(credentials, modelKey, options = {}) {
 export async function resolveQoderModels(credentials, options = {}) {
   let resolved;
   try {
-    resolved = await resolveQoderCredentials(credentials, options.proxyOptions, options.signal);
+    resolved = await resolveQoderCredentials(
+      credentials,
+      options.proxyOptions,
+      options.signal,
+    );
   } catch (error) {
     options.log?.warn?.("QODER", `PAT exchange failed: ${error.message}`);
     return null;
   }
-  if (!resolved?.accessToken || !(resolved.providerSpecificData || {}).userId) return null;
+  if (!resolved?.accessToken || !(resolved.providerSpecificData || {}).userId)
+    return null;
 
   const key = cacheKey(resolved);
   const now = Date.now();
@@ -319,7 +349,11 @@ export async function resolveQoderModels(credentials, options = {}) {
   }
 
   const fetchPromise = (async () => {
-    const fetched = await fetchQoderCatalogRaw(resolved, options.signal, options.proxyOptions);
+    const fetched = await fetchQoderCatalogRaw(
+      resolved,
+      options.signal,
+      options.proxyOptions,
+    );
     if (!fetched) return null;
     const entry = {
       expiresAt: Date.now() + CACHE_TTL_MS,
@@ -341,6 +375,30 @@ export async function resolveQoderModels(credentials, options = {}) {
       inflight.delete(key);
     }
   }
+}
+
+/**
+ * Every model key the chat endpoint accepts for this credential: the IDE-visible
+ * models first, then catalog entries flagged `enable:false` (hidden in the IDE
+ * picker, e.g. by an account policy, but still served by agent_chat_generation —
+ * see fetchQoderCatalogRaw). /v1/models uses this so the advertised list matches
+ * what the router will actually route instead of collapsing to one or two keys.
+ */
+export function routableQoderModels(catalog) {
+  if (!catalog) return [];
+  const out = [];
+  const seen = new Set();
+  for (const m of catalog.models || []) {
+    if (!m?.id || seen.has(m.id)) continue;
+    seen.add(m.id);
+    out.push({ id: m.id, name: m.name || m.id, hidden: false });
+  }
+  for (const [key, cfg] of catalog.rawConfigs || []) {
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ id: key, name: cfg?.display_name || key, hidden: true });
+  }
+  return out;
 }
 
 export function invalidateQoderCatalog(credentials) {

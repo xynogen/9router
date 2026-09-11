@@ -1,6 +1,9 @@
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
-import { DEFAULT_THINKING_AG_SIGNATURE, DEFAULT_THINKING_GEMINI_CLI_SIGNATURE } from "../../config/defaultThinkingSignature.js";
+import {
+  DEFAULT_THINKING_AG_SIGNATURE,
+  DEFAULT_THINKING_GEMINI_CLI_SIGNATURE,
+} from "../../config/defaultThinkingSignature.js";
 import { openaiToClaudeRequestForAntigravity } from "./openai-to-claude.js";
 import { getGeminiThoughtSignatureSync } from "../../services/thoughtSignatureStore.js";
 function generateUUID() {
@@ -15,10 +18,19 @@ import {
   generateRequestId,
   generateSessionId,
   generateProjectId,
-  cleanJSONSchemaForAntigravity
+  cleanJSONSchemaForAntigravity,
+  normalizeGeminiContents,
 } from "../formats/gemini.js";
-import { deriveSessionId, toNumericSessionId } from "../../utils/sessionManager.js";
-import { ROLE, GEMINI_ROLE, OPENAI_BLOCK, CLAUDE_BLOCK } from "../schema/index.js";
+import {
+  deriveSessionId,
+  toNumericSessionId,
+} from "../../utils/sessionManager.js";
+import {
+  ROLE,
+  GEMINI_ROLE,
+  OPENAI_BLOCK,
+  CLAUDE_BLOCK,
+} from "../schema/index.js";
 
 // Sanitize function names for Gemini API.
 // Gemini requires: starts with [a-zA-Z_], followed by [a-zA-Z0-9_.:\-], max 64 chars.
@@ -35,24 +47,19 @@ function sanitizeGeminiFunctionName(name) {
   return sanitized.substring(0, 64);
 }
 
-function normalizeGeminiContents(contents) {
-  const out = [];
-  for (const c of contents || []) {
-    if (!c?.role || !Array.isArray(c.parts) || c.parts.length === 0) continue;
-    const last = out.at(-1);
-    if (last?.role === c.role) last.parts.push(...c.parts);
-    else out.push({ ...c, parts: [...c.parts] });
-  }
-  return out;
-}
-
 // Core: Convert OpenAI request to Gemini format (base for all variants)
-function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG_SIGNATURE, sessionId = null) {
+function openaiToGeminiBase(
+  model,
+  body,
+  stream,
+  signature = DEFAULT_THINKING_AG_SIGNATURE,
+  sessionId = null,
+) {
   const result = {
     model: model,
     contents: [],
     generationConfig: {},
-    safetySettings: DEFAULT_SAFETY_SETTINGS
+    safetySettings: DEFAULT_SAFETY_SETTINGS,
   };
 
   // Generation config
@@ -103,9 +110,19 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
       if (role === ROLE.SYSTEM && body.messages.length > 1) {
         result.systemInstruction = {
           role: GEMINI_ROLE.USER,
-          parts: [{ text: typeof content === "string" ? content : extractTextContent(content) }]
+          parts: [
+            {
+              text:
+                typeof content === "string"
+                  ? content
+                  : extractTextContent(content),
+            },
+          ],
         };
-      } else if (role === ROLE.USER || (role === ROLE.SYSTEM && body.messages.length === 1)) {
+      } else if (
+        role === ROLE.USER ||
+        (role === ROLE.SYSTEM && body.messages.length === 1)
+      ) {
         const parts = convertOpenAIContentToParts(content);
         if (parts.length > 0) {
           result.contents.push({ role: GEMINI_ROLE.USER, parts });
@@ -117,16 +134,17 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
         if (msg.reasoning_content) {
           parts.push({
             thought: true,
-            text: msg.reasoning_content
+            text: msg.reasoning_content,
           });
           parts.push({
             thoughtSignature: signature,
-            text: ""
+            text: "",
           });
         }
 
         if (content) {
-          const text = typeof content === "string" ? content : extractTextContent(content);
+          const text =
+            typeof content === "string" ? content : extractTextContent(content);
           if (text) {
             parts.push({ text });
           }
@@ -139,17 +157,20 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
             if (tc.type !== OPENAI_BLOCK.FUNCTION) continue;
 
             const args = tryParseJSON(tc.function?.arguments || "{}");
-            const cachedSig = tc.id ? getGeminiThoughtSignatureSync(tc.id, sessionId) : null;
+            const cachedSig = tc.id
+              ? getGeminiThoughtSignatureSync(tc.id, sessionId)
+              : null;
             // First call gets cached signature or fallback; sibling calls remain unsigned if no cached sig
-            const callSig = cachedSig || (!firstFunctionCallSeen ? signature : undefined);
+            const callSig =
+              cachedSig || (!firstFunctionCallSeen ? signature : undefined);
             firstFunctionCallSeen = true;
 
             const part = {
               functionCall: {
                 id: tc.id,
                 name: sanitizeGeminiFunctionName(tc.function.name),
-                args: args
-              }
+                args: args,
+              },
             };
             if (callSig) {
               part.thoughtSignature = callSig;
@@ -163,12 +184,16 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
           }
 
           // Check if there are actual tool responses in the next messages
-          const hasActualResponses = toolCallIds.some(fid => toolResponses[fid]);
+          const isIntermediate = i < body.messages.length - 1;
+          const hasActualResponses = toolCallIds.some(
+            (fid) => toolResponses[fid] !== undefined,
+          );
 
-          if (hasActualResponses) {
+          if (hasActualResponses || isIntermediate) {
             const toolParts = [];
             for (const fid of toolCallIds) {
-              if (!toolResponses[fid]) continue;
+              let resp = toolResponses[fid];
+              if (resp === undefined) resp = "";
 
               let name = tcID2Name[fid];
               if (!name) {
@@ -180,7 +205,6 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
                 }
               }
 
-              let resp = toolResponses[fid];
               let parsedResp = tryParseJSON(resp);
               if (parsedResp === null) {
                 parsedResp = { result: resp };
@@ -192,12 +216,15 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
                 functionResponse: {
                   id: fid,
                   name: sanitizeGeminiFunctionName(name),
-                  response: { result: parsedResp }
-                }
+                  response: { result: parsedResp },
+                },
               });
             }
             if (toolParts.length > 0) {
-              result.contents.push({ role: GEMINI_ROLE.USER, parts: toolParts });
+              result.contents.push({
+                role: GEMINI_ROLE.USER,
+                parts: toolParts,
+              });
             }
           }
         } else if (parts.length > 0) {
@@ -213,21 +240,25 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
     for (const t of body.tools) {
       // Check if already in Anthropic/Claude format (no type field, direct name/description/input_schema)
       if (t.name && t.input_schema) {
-        const cleanedSchema = cleanJSONSchemaForAntigravity(structuredClone(t.input_schema || { type: "object", properties: {} }));
+        const cleanedSchema = cleanJSONSchemaForAntigravity(
+          structuredClone(t.input_schema || { type: "object", properties: {} }),
+        );
         functionDeclarations.push({
           name: sanitizeGeminiFunctionName(t.name),
           description: t.description || "",
-          parameters: cleanedSchema
+          parameters: cleanedSchema,
         });
       }
       // OpenAI format
       else if (t.type === OPENAI_BLOCK.FUNCTION && t.function) {
         const fn = t.function;
-        const cleanedSchema = cleanJSONSchemaForAntigravity(structuredClone(fn.parameters || { type: "object", properties: {} }));
+        const cleanedSchema = cleanJSONSchemaForAntigravity(
+          structuredClone(fn.parameters || { type: "object", properties: {} }),
+        );
         functionDeclarations.push({
           name: sanitizeGeminiFunctionName(fn.name),
           description: fn.description || "",
-          parameters: cleanedSchema
+          parameters: cleanedSchema,
         });
       }
     }
@@ -243,12 +274,29 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
 
 // OpenAI -> Gemini (standard API)
 export function openaiToGeminiRequest(model, body, stream, credentials = null) {
-  return openaiToGeminiBase(model, body, stream, DEFAULT_THINKING_AG_SIGNATURE, credentials?._clientSessionId);
+  return openaiToGeminiBase(
+    model,
+    body,
+    stream,
+    DEFAULT_THINKING_AG_SIGNATURE,
+    credentials?._clientSessionId,
+  );
 }
 
 // OpenAI -> Gemini CLI (Cloud Code Assist)
-export function openaiToGeminiCLIRequest(model, body, stream, credentials = null) {
-  const gemini = openaiToGeminiBase(model, body, stream, DEFAULT_THINKING_GEMINI_CLI_SIGNATURE, credentials?._clientSessionId);
+export function openaiToGeminiCLIRequest(
+  model,
+  body,
+  stream,
+  credentials = null,
+) {
+  const gemini = openaiToGeminiBase(
+    model,
+    body,
+    stream,
+    DEFAULT_THINKING_GEMINI_CLI_SIGNATURE,
+    credentials?._clientSessionId,
+  );
   // Thinking is normalized centrally by applyThinking (thinkingUnified.js) after translation.
 
   // Clean schema for tools
@@ -271,7 +319,12 @@ export function openaiToGeminiCLIRequest(model, body, stream, credentials = null
 }
 
 // Wrap Gemini CLI format in Cloud Code wrapper
-function wrapInCloudCodeEnvelope(model, geminiCLI, credentials = null, isAntigravity = false) {
+function wrapInCloudCodeEnvelope(
+  model,
+  geminiCLI,
+  credentials = null,
+  isAntigravity = false,
+) {
   const projectId = credentials?.projectId || generateProjectId();
 
   const envelope = {
@@ -280,12 +333,16 @@ function wrapInCloudCodeEnvelope(model, geminiCLI, credentials = null, isAntigra
     userAgent: isAntigravity ? "antigravity" : "gemini-cli",
     requestId: isAntigravity ? `agent-${generateUUID()}` : generateRequestId(),
     request: {
-      sessionId: toNumericSessionId(credentials?._clientSessionId) || (isAntigravity ? deriveSessionId(credentials?.email || credentials?.connectionId) : generateSessionId()),
+      sessionId:
+        toNumericSessionId(credentials?._clientSessionId) ||
+        (isAntigravity
+          ? deriveSessionId(credentials?.email || credentials?.connectionId)
+          : generateSessionId()),
       contents: geminiCLI.contents,
       systemInstruction: geminiCLI.systemInstruction,
       generationConfig: geminiCLI.generationConfig,
       tools: geminiCLI.tools,
-    }
+    },
   };
 
   // Antigravity specific fields
@@ -298,7 +355,7 @@ function wrapInCloudCodeEnvelope(model, geminiCLI, credentials = null, isAntigra
 
   if (geminiCLI.tools?.length > 0) {
     envelope.request.toolConfig = {
-      functionCallingConfig: { mode: "VALIDATED" }
+      functionCallingConfig: { mode: "VALIDATED" },
     };
   }
 
@@ -306,7 +363,12 @@ function wrapInCloudCodeEnvelope(model, geminiCLI, credentials = null, isAntigra
 }
 
 // Wrap Claude format in Cloud Code envelope for Antigravity
-function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = null, signature = DEFAULT_THINKING_AG_SIGNATURE) {
+function wrapInCloudCodeEnvelopeForClaude(
+  model,
+  claudeRequest,
+  credentials = null,
+  signature = DEFAULT_THINKING_AG_SIGNATURE,
+) {
   const projectId = credentials?.projectId || generateProjectId();
 
   const envelope = {
@@ -316,13 +378,15 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
     requestId: `agent-${generateUUID()}`,
     requestType: "agent",
     request: {
-      sessionId: toNumericSessionId(credentials?._clientSessionId) || deriveSessionId(credentials?.email || credentials?.connectionId),
+      sessionId:
+        toNumericSessionId(credentials?._clientSessionId) ||
+        deriveSessionId(credentials?.email || credentials?.connectionId),
       contents: [],
       generationConfig: {
         temperature: claudeRequest.temperature || 1,
-        maxOutputTokens: claudeRequest.max_tokens || 4096
-      }
-    }
+        maxOutputTokens: claudeRequest.max_tokens || 4096,
+      },
+    },
   };
 
   // Build tool_use id -> name map so functionResponse can use the correct name
@@ -350,16 +414,22 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
           if (block.type === CLAUDE_BLOCK.TEXT) {
             parts.push({ text: block.text });
           } else if (block.type === CLAUDE_BLOCK.TOOL_USE) {
-            const cachedSig = block.id ? getGeminiThoughtSignatureSync(block.id, credentials?._clientSessionId) : null;
-            const callSig = cachedSig || (!firstToolUseSeen ? signature : undefined);
+            const cachedSig = block.id
+              ? getGeminiThoughtSignatureSync(
+                  block.id,
+                  credentials?._clientSessionId,
+                )
+              : null;
+            const callSig =
+              cachedSig || (!firstToolUseSeen ? signature : undefined);
             firstToolUseSeen = true;
 
             const part = {
               functionCall: {
                 id: block.id,
                 name: sanitizeGeminiFunctionName(block.name),
-                args: block.input || {}
-              }
+                args: block.input || {},
+              },
             };
             if (callSig) {
               part.thoughtSignature = callSig;
@@ -368,7 +438,11 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
           } else if (block.type === CLAUDE_BLOCK.TOOL_RESULT) {
             let content = block.content;
             if (Array.isArray(content)) {
-              content = content.map(c => c.type === CLAUDE_BLOCK.TEXT ? c.text : JSON.stringify(c)).join("\n");
+              content = content
+                .map((c) =>
+                  c.type === CLAUDE_BLOCK.TEXT ? c.text : JSON.stringify(c),
+                )
+                .join("\n");
             }
             // Resolve the original tool name from the id — Gemini requires it to match the functionCall name
             const resolvedName = toolUseIdToName[block.tool_use_id]
@@ -378,8 +452,8 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
               functionResponse: {
                 id: block.tool_use_id,
                 name: resolvedName,
-                response: { result: tryParseJSON(content) || content }
-              }
+                response: { result: tryParseJSON(content) || content },
+              },
             });
           }
         }
@@ -389,8 +463,9 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
 
       if (parts.length > 0) {
         envelope.request.contents.push({
-          role: msg.role === ROLE.ASSISTANT ? GEMINI_ROLE.MODEL : GEMINI_ROLE.USER,
-          parts
+          role:
+            msg.role === ROLE.ASSISTANT ? GEMINI_ROLE.MODEL : GEMINI_ROLE.USER,
+          parts,
         });
       }
     }
@@ -405,14 +480,14 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
         functionDeclarations.push({
           name: sanitizeGeminiFunctionName(tool.name),
           description: tool.description || "",
-          parameters: cleanedSchema
+          parameters: cleanedSchema,
         });
       }
     }
     if (functionDeclarations.length > 0) {
       envelope.request.tools = [{ functionDeclarations }];
       envelope.request.toolConfig = {
-        functionCallingConfig: { mode: "VALIDATED" }
+        functionCallingConfig: { mode: "VALIDATED" },
       };
     }
   }
@@ -430,10 +505,15 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
   }
 
   if (systemParts.length > 0) {
-    envelope.request.systemInstruction = { role: GEMINI_ROLE.USER, parts: systemParts };
+    envelope.request.systemInstruction = {
+      role: GEMINI_ROLE.USER,
+      parts: systemParts,
+    };
   }
 
-  envelope.request.contents = normalizeGeminiContents(envelope.request.contents);
+  envelope.request.contents = normalizeGeminiContents(
+    envelope.request.contents,
+  );
   return envelope;
 }
 
@@ -444,9 +524,18 @@ function isClaudeModel(model) {
 }
 
 // OpenAI -> Antigravity (Sandbox Cloud Code with wrapper)
-export function openaiToAntigravityRequest(model, body, stream, credentials = null) {
+export function openaiToAntigravityRequest(
+  model,
+  body,
+  stream,
+  credentials = null,
+) {
   if (isClaudeModel(model)) {
-    const claudeRequest = openaiToClaudeRequestForAntigravity(model, body, stream);
+    const claudeRequest = openaiToClaudeRequestForAntigravity(
+      model,
+      body,
+      stream,
+    );
     return wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials);
   }
 
@@ -456,5 +545,15 @@ export function openaiToAntigravityRequest(model, body, stream, credentials = nu
 
 // Register
 register(FORMATS.OPENAI, FORMATS.GEMINI, openaiToGeminiRequest, null);
-register(FORMATS.OPENAI, FORMATS.GEMINI_CLI, (model, body, stream, credentials) => wrapInCloudCodeEnvelope(model, openaiToGeminiCLIRequest(model, body, stream), credentials), null);
+register(
+  FORMATS.OPENAI,
+  FORMATS.GEMINI_CLI,
+  (model, body, stream, credentials) =>
+    wrapInCloudCodeEnvelope(
+      model,
+      openaiToGeminiCLIRequest(model, body, stream),
+      credentials,
+    ),
+  null,
+);
 register(FORMATS.OPENAI, FORMATS.ANTIGRAVITY, openaiToAntigravityRequest, null);
