@@ -5,25 +5,27 @@
 This repo is a **personal fork** of an upstream project, recompiled and run by the owner.
 
 - **`github` remote** → upstream: `https://github.com/decolua/9router.git`
-- **`origin` remote** → owner's Forgejo: `https://forgejo.xynogen.xyz/xynogen/9router.git`
+- **`origin` remote** → owner's fork: `git@github.com:xynogen/9router.git` (GitHub)
 
-The owner regularly pulls from `github` (upstream) and merges into `origin` (their fork). The fork carries local patches — primarily CI/CD configuration for self-hosted Forgejo Actions and Docker build/push to a private registry.
+The owner regularly pulls from `github` (upstream) and merges into `origin` (their fork). The fork carries local patches — primarily CI/CD configuration for GitHub Actions and Docker build/push to GitHub Container Registry (ghcr.io).
+
+> Verify remotes with `git remote -v` before acting — this file has been stale before. The repo previously lived on self-hosted Forgejo (`forgejo.xynogen.xyz`, `.forgejo/workflows/`); it has since moved to GitHub + ghcr.io. If you see Forgejo references anywhere, treat them as historical.
 
 ## Merge instability
 
 Pulling and merging upstream into the fork is **unreliable**:
 
 - Upstream rewrites files frequently → unrelated diffs collide with local patches
-- CI/CD files (`.forgejo/`, `Dockerfile`, `.dockerignore`) and lockfile state are common conflict points
+- CI/CD files (`.github/workflows/`, `Dockerfile`, `.dockerignore`) and lockfile state are common conflict points
 - Lockfile drift (`package-lock.json` ↔ `package.json`) often appears after merges
 - Optional native deps (`lightningcss`, `@next/swc-*`, `better-sqlite3`) cause platform-specific install failures post-merge
 
 ### When helping with a post-merge issue
 
 1. Always check `git log --oneline -20` first to see whether a merge commit is the source of the breakage.
-2. Treat anything under `.forgejo/`, `Dockerfile`, `.dockerignore`, and lockfile changes as **owner's local patches** — preserve them unless explicitly told otherwise. For CI/CD conflicts, prefer `origin`'s Forgejo workflow.
+2. Treat anything under `.github/workflows/`, `Dockerfile`, `.dockerignore`, and lockfile changes as **owner's local patches** — preserve them unless explicitly told otherwise. For CI/CD conflicts, prefer `origin`'s GitHub Actions workflow.
 3. If lockfile is suspect, prefer regenerating on the owner's host (Linux glibc) over trusting upstream's version.
-4. The build runs in Docker on a self-hosted Forgejo Actions runner (Ubuntu host, DinD). Local environment differs.
+4. The build runs in Docker on GitHub Actions (`ubuntu-latest` runner with buildx). Local environment differs.
 
 ## Build environment summary
 
@@ -48,14 +50,15 @@ Pulling and merging upstream into the fork is **unreliable**:
 
 ## Current CI behavior (this repo)
 
-Workflow: `.forgejo/workflows/docker-build.yml`
+Workflow: `.github/workflows/docker-publish.yml` (name: `Build and Publish Container`)
 
-- **Trigger**: tag push only (`on: push: tags: ["*"]`). `master` push does **not** build.
-- **Image tag**: derived directly from git tag name (no prefix stripping expected). CI uses `GITHUB_REF_NAME` verbatim.
-- **Tag format**: **bare, no `v` prefix** (e.g. `0.5.4`, not `v0.5.4`) — tag must equal `package.json` `version` exactly so the image tag matches the version string. Ignore legacy `v`-prefixed tags in history; do not follow that pattern. Do **not** rewrite the CI to strip `v` — fix the tag instead.
-- **Tags pushed per build**: `forgejo.xynogen.xyz/xynogen/9router:<version>` and `:latest`.
+- **Trigger**: tag push only (`on: push: tags: ["*"]`), plus manual `workflow_dispatch` with a `version` input. `master` push does **not** build.
+- **Image tag**: derived directly from git tag name via `github.ref_name` (or `inputs.version` on manual dispatch). Validated against `^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$` — no prefix stripping.
+- **Tag format**: **bare, no `v` prefix** (e.g. `0.5.75`, not `v0.5.75`) — tag must equal `package.json` `version` exactly so the image tag matches the version string. Ignore legacy `v`-prefixed tags in history; do not follow that pattern. Do **not** rewrite the CI to strip `v` — fix the tag instead.
+- **Tags pushed per build**: `ghcr.io/xynogen/9router:<version>` and `:latest`.
 - **No `package.json` read in CI** — the git tag name is the single source of truth for the image version. Agents must align `package.json` version and tag name before pushing.
-- **Registry**: `forgejo.xynogen.xyz/xynogen/9router` (auth via `secrets.REGISTRY_TOKEN`).
+- **Registry**: `ghcr.io/xynogen/9router` (GitHub Container Registry, auth via the built-in `secrets.GITHUB_TOKEN`).
+- **Build**: `docker/build-push-action` with `no-cache: true`, buildx on `ubuntu-latest`.
 
 Practical release sequence (this repo):
 
@@ -70,7 +73,7 @@ Some repos in this owner's ecosystem use **tag-triggered release workflows**. Pa
 ### Trigger model
 
 - Workflow runs on **tag push only** (`on: push: tags: ["*"]`). Branch pushes — including `master`/`main` — do **not** trigger release builds.
-- Pushing a tag = publishing a release. There are no "throwaway" tags; every pushed tag creates/updates a Forgejo Release with artifacts attached.
+- Pushing a tag = publishing a container image. There are no "throwaway" tags; every pushed tag builds and pushes a versioned image to ghcr.io.
 
 ### Version derivation (priority order)
 
@@ -116,7 +119,7 @@ git push origin :refs/tags/<tag>   # delete remote
 git tag -d <tag>                    # delete local
 ```
 
-The Forgejo Release created by the tag must be deleted separately via UI/API.
+A container image published to ghcr.io by the tag must be deleted separately via the GitHub Packages UI/API.
 
 ### What agents should NOT assume
 
