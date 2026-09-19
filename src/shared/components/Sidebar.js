@@ -289,7 +289,6 @@ export default function Sidebar({ onClose }) {
               ) : null;
             })}
 
-
             {/* Settings */}
             <Link
               href="/dashboard/profile"
