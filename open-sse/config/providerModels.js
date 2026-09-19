@@ -282,6 +282,38 @@ export const PROVIDER_ID_TO_ALIAS = Object.fromEntries(
   Object.keys(PROVIDERS).map((id) => [id, OAUTH_ALIASES[id] || id]),
 );
 
+// Sync meta-models into PROVIDER_MODELS and hide internal tier target models
+for (const [providerId, metaMap] of Object.entries(PROVIDER_META_MODELS)) {
+  const alias = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
+  const models = PROVIDER_MODELS[alias] || PROVIDER_MODELS[providerId];
+  if (!models) continue;
+
+  const tierTargetIds = new Set();
+  for (const [id, meta] of Object.entries(metaMap)) {
+    const tiers = meta.tiers || meta;
+    for (const targetId of Object.values(tiers)) {
+      if (typeof targetId === "string") {
+        tierTargetIds.add(targetId);
+      }
+    }
+    // Add base meta-model if not already in models list
+    if (!models.some((m) => m.id === id)) {
+      models.push({
+        id,
+        name: meta.name || id,
+        thinkingTiers: tiers,
+      });
+    }
+  }
+
+  // Mark tier target models as hidden so they do not clutter UI / discovery
+  for (const m of models) {
+    if (tierTargetIds.has(m.id) && !metaMap[m.id]) {
+      m.hidden = true;
+    }
+  }
+}
+
 export function getModelsByProviderId(providerId) {
   const alias = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
   return PROVIDER_MODELS[alias] || [];

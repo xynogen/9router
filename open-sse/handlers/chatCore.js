@@ -427,7 +427,7 @@ export async function handleChatCore({
       credentials?.connectionId?.slice(0, 8) ||
       "-";
     const parts = [
-      `POST ${clientModel} → ${provider}/${model}`,
+      `POST ${clientModel} → ${provider}/${stripThinkingSuffix(upstreamModel)}`,
       fmtStr,
       stream ? "STREAM" : "JSON",
       `${msgN} MSG`,

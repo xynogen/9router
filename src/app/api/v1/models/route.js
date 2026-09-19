@@ -378,6 +378,7 @@ export async function buildModelsList(kindFilter, options = {}) {
       const providerId = aliasToProviderId[alias] || alias;
       if (!providerMatchesKinds(providerId, kindFilter)) continue;
       for (const model of providerModels) {
+        if (model.hidden) continue;
         if (!kindFilter.includes(modelKind(model))) continue;
         if (isDisabled(alias, model.id) || isDisabled(providerId, model.id))
           continue;
@@ -440,7 +441,9 @@ export async function buildModelsList(kindFilter, options = {}) {
               ),
             ),
           )
-        : providerModels.map((model) => model.id);
+        : providerModels
+            .filter((model) => !model.hidden)
+            .map((model) => model.id);
 
       if (
         isCompatibleProvider &&

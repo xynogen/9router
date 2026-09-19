@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -12,7 +13,6 @@ import {
   Card,
   Button,
   Badge,
-  Input,
   Modal,
   CardSkeleton,
   OAuthModal,
@@ -22,7 +22,6 @@ import {
   IFlowCookieModal,
   GitLabAuthModal,
   Toggle,
-  Select,
   EditConnectionModal,
   NoAuthProxyCard,
   ConfirmModal,
@@ -36,9 +35,12 @@ import {
   getProviderAlias,
   isOpenAICompatibleProvider,
   isAnthropicCompatibleProvider,
-  AI_PROVIDERS,
 } from "@/shared/constants/providers";
-import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
+import {
+  getModelsByProviderId,
+  getModelKind,
+  PROVIDER_META_MODELS,
+} from "@/shared/constants/models";
 import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
@@ -46,7 +48,6 @@ import { translate } from "@/i18n/runtime";
 import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
 import ModelRow from "./ModelRow";
-import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
 import ConnectionRow from "./ConnectionRow";
 import AddApiKeyModal from "./AddApiKeyModal";
@@ -94,7 +95,6 @@ export default function ProviderDetailPage() {
   const [testingModelIds, setTestingModelIds] = useState(() => new Set());
   const [showAddCustomModel, setShowAddCustomModel] = useState(false);
   const [selectedConnectionIds, setSelectedConnectionIds] = useState([]);
-  const [bulkProxyPoolId, setBulkProxyPoolId] = useState("__none__");
   const [bulkUpdatingProxy, setBulkUpdatingProxy] = useState(false);
   const [providerStrategy, setProviderStrategy] = useState(null);
   const [providerStickyLimit, setProviderStickyLimit] = useState("");
@@ -201,9 +201,10 @@ export default function ProviderDetailPage() {
     !!APIKEY_PROVIDERS[providerId] || authModes.includes("apikey");
   const isFreeNoAuth = !!FREE_PROVIDERS[providerId]?.noAuth;
   const staticModels = getModelsByProviderId(providerId);
-  const models = (providerId === "cursor" || providerId === "zed") && liveModels.length > 0
-    ? liveModels
-    : staticModels;
+  const models =
+    (providerId === "cursor" || providerId === "zed") && liveModels.length > 0
+      ? liveModels
+      : staticModels;
   const providerAlias = getProviderAlias(providerId);
 
   const isOpenAICompatible = isOpenAICompatibleProvider(providerId);
@@ -247,8 +248,8 @@ export default function ProviderDetailPage() {
           if (l !== "none") set.add(l);
         });
     };
-    for (const m of models) addLevels(m.id);
-    for (const m of kiloFreeModels) addLevels(m.id);
+    for (const m of models) if (!m.hidden) addLevels(m.id);
+    for (const m of kiloFreeModels) if (!m.hidden) addLevels(m.id);
     for (const entry of customModels) {
       if (entry.providerAlias !== providerStorageAlias) continue;
       if ((entry.kind || entry.type || "llm") !== "llm") continue;
@@ -583,17 +584,23 @@ export default function ProviderDetailPage() {
     let cancelled = false;
     if (providerId === "zed") setLiveModelsError(null);
     fetch(`/api/providers/${connection.id}/models`, { cache: "no-store" })
-      .then(async (res) => ({ ok: res.ok, data: await res.json().catch(() => null) }))
+      .then(async (res) => ({
+        ok: res.ok,
+        data: await res.json().catch(() => null),
+      }))
       .then(({ ok, data }) => {
         if (cancelled) return;
         if (ok && Array.isArray(data?.models) && data.models.length > 0) {
           setLiveModels(data.models);
-          if (providerId === "zed" && data?.warning) setLiveModelsError(data.warning);
+          if (providerId === "zed" && data?.warning)
+            setLiveModelsError(data.warning);
           return;
         }
         if (providerId === "zed") {
           setLiveModels([]);
-          setLiveModelsError(data?.warning || data?.error || "Zed returned no live models.");
+          setLiveModelsError(
+            data?.warning || data?.error || "Zed returned no live models.",
+          );
         }
       })
       .catch(() => {
@@ -1094,7 +1101,7 @@ export default function ProviderDetailPage() {
     }
   };
 
-  const selectedConnections = connections.filter((conn) =>
+  const _selectedConnections = connections.filter((conn) =>
     selectedConnectionIds.includes(conn.id),
   );
   const allSelected =
@@ -1117,47 +1124,11 @@ export default function ProviderDetailPage() {
     setSelectedConnectionIds(connections.map((conn) => conn.id));
   };
 
-  const _clearSelection = () => {
-    setSelectedConnectionIds([]);
-    setBulkProxyPoolId("__none__");
-  };
-
   useEffect(() => {
     setSelectedConnectionIds((prev) =>
       prev.filter((id) => connections.some((conn) => conn.id === id)),
     );
   }, [connections]);
-
-  const _selectedProxySummary = (() => {
-    if (selectedConnections.length === 0) return "";
-    const poolIds = new Set(
-      selectedConnections.map(
-        (conn) => conn.providerSpecificData?.proxyPoolId || "__none__",
-      ),
-    );
-    if (poolIds.size === 1) {
-      const onlyId = [...poolIds][0];
-      if (onlyId === "__none__") return "All selected currently unbound";
-      const pool = proxyPools.find((p) => p.id === onlyId);
-      return `All selected currently bound to ${pool?.name || onlyId}`;
-    }
-    return "Selected connections have mixed proxy bindings";
-  })();
-
-  const openBulkProxyModal = () => {
-    if (selectedConnections.length === 0) return;
-    const uniquePoolIds = [
-      ...new Set(
-        selectedConnections.map(
-          (conn) => conn.providerSpecificData?.proxyPoolId || "__none__",
-        ),
-      ),
-    ];
-    setBulkProxyPoolId(
-      uniquePoolIds.length === 1 ? uniquePoolIds[0] : "__none__",
-    );
-    setShowBulkProxyModal(true);
-  };
 
   const closeBulkProxyModal = () => {
     if (bulkUpdatingProxy) return;
@@ -1407,10 +1378,24 @@ export default function ProviderDetailPage() {
       ...models,
       ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
     ].filter((m) => {
+      if (m.hidden) return false;
       const k = getModelKind(m);
       return !k || k === "llm";
     });
     const disabledSet = new Set(disabledModelIds);
+    // If a meta-model's tier was active (not disabled), unmark the base model as disabled
+    const metaMap =
+      PROVIDER_META_MODELS[providerStorageAlias] ||
+      PROVIDER_META_MODELS[providerId];
+    if (metaMap) {
+      for (const [baseId, meta] of Object.entries(metaMap)) {
+        const tiers = Object.values(meta.tiers || meta);
+        const hasActiveTier = tiers.some((t) => !disabledSet.has(t));
+        if (hasActiveTier) {
+          disabledSet.delete(baseId);
+        }
+      }
+    }
     const displayModels = allModels.filter((m) => !disabledSet.has(m.id));
     const disabledDisplayModels = allModels.filter((m) =>
       disabledSet.has(m.id),
@@ -2143,6 +2128,7 @@ export default function ProviderDetailPage() {
                 ),
               ]
                 .filter((m) => {
+                  if (m.hidden) return false;
                   const k = getModelKind(m);
                   return !k || k === "llm";
                 })
@@ -2178,35 +2164,51 @@ export default function ProviderDetailPage() {
         </div>
         {!!modelsTestError && (
           <div className="mb-3">
-            <p className="text-xs text-red-500 break-words">{modelsTestError}</p>
-            {/RegionError|hosted in China|regionNotAllowed/i.test(modelsTestError) && (() => {
-              const str = typeof modelsTestError === "string" ? modelsTestError : JSON.stringify(modelsTestError);
-              const linkMatch = str.match(/https:\/\/opencode\.ai\/workspace\/[^\s"')]+/);
-              const wrkMatch = str.match(/wrk_[0-9A-Za-z]+/);
-              const targetUrl = linkMatch
-                ? (linkMatch[0].endsWith("/go") ? linkMatch[0] : `${linkMatch[0]}/go`)
-                : wrkMatch
-                  ? `https://opencode.ai/workspace/${wrkMatch[0]}/go`
-                  : "https://opencode.ai";
+            <p className="text-xs text-red-500 break-words">
+              {modelsTestError}
+            </p>
+            {/RegionError|hosted in China|regionNotAllowed/i.test(
+              modelsTestError,
+            ) &&
+              (() => {
+                const str =
+                  typeof modelsTestError === "string"
+                    ? modelsTestError
+                    : JSON.stringify(modelsTestError);
+                const linkMatch = str.match(
+                  /https:\/\/opencode\.ai\/workspace\/[^\s"')]+/,
+                );
+                const wrkMatch = str.match(/wrk_[0-9A-Za-z]+/);
+                const targetUrl = linkMatch
+                  ? linkMatch[0].endsWith("/go")
+                    ? linkMatch[0]
+                    : `${linkMatch[0]}/go`
+                  : wrkMatch
+                    ? `https://opencode.ai/workspace/${wrkMatch[0]}/go`
+                    : "https://opencode.ai";
 
-              return (
-                <div className="mt-1.5">
-                  <a
-                    href={targetUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 hover:bg-amber-500/20 dark:text-amber-400 transition-colors"
-                  >
-                    <span>Allow China-hosted models</span>
-                    <span className="material-symbols-outlined text-[13px]">open_in_new</span>
-                  </a>
-                </div>
-              );
-            })()}
+                return (
+                  <div className="mt-1.5">
+                    <a
+                      href={targetUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 hover:bg-amber-500/20 dark:text-amber-400 transition-colors"
+                    >
+                      <span>Allow China-hosted models</span>
+                      <span className="material-symbols-outlined text-[13px]">
+                        open_in_new
+                      </span>
+                    </a>
+                  </div>
+                );
+              })()}
           </div>
         )}
         {providerId === "zed" && !!liveModelsError && (
-          <p className="text-xs text-red-500 mb-3 break-words">{liveModelsError}</p>
+          <p className="text-xs text-red-500 mb-3 break-words">
+            {liveModelsError}
+          </p>
         )}
         {renderModelsSection()}
       </Card>

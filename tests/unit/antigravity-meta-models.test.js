@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   getModelUpstreamId,
   resolveThinkingTier,
+  getModelsByProviderId,
 } from "../../open-sse/config/providerModels.js";
+import { isValidModel, AI_MODELS } from "../../src/shared/constants/models.js";
 import { AntigravityExecutor } from "../../open-sse/executors/antigravity.js";
 import {
   applyThinking,
@@ -194,5 +196,52 @@ describe("Antigravity meta-model executor integration", () => {
       thinkingLevel: "low",
       includeThoughts: true,
     });
+  });
+});
+
+describe("Antigravity meta-models discovery and visibility", () => {
+  it("exposes clean base models as visible and marks tier targets as hidden", () => {
+    const agModels = getModelsByProviderId("antigravity");
+    const visibleIds = agModels.filter((m) => !m.hidden).map((m) => m.id);
+    const hiddenIds = agModels.filter((m) => m.hidden).map((m) => m.id);
+
+    // Visible base models
+    expect(visibleIds).toContain("gemini-3.8-flash");
+    expect(visibleIds).toContain("gemini-3.7-flash");
+    expect(visibleIds).toContain("gemini-3.6-flash");
+    expect(visibleIds).toContain("gemini-3.5-flash");
+    expect(visibleIds).toContain("gemini-3.1-pro");
+    expect(visibleIds).toContain("claude-opus-4-6");
+
+    // Hidden backend tier targets
+    expect(hiddenIds).toContain("gemini-3.8-flash-high");
+    expect(hiddenIds).toContain("gemini-3.8-flash-medium");
+    expect(hiddenIds).toContain("gemini-3.8-flash-low");
+    expect(hiddenIds).toContain("gemini-3.7-flash-high");
+    expect(hiddenIds).toContain("gemini-3.7-flash-medium");
+    expect(hiddenIds).toContain("gemini-3.7-flash-low");
+    expect(hiddenIds).toContain("claude-opus-4-6-thinking");
+  });
+
+  it("validates both base models and tiered models", () => {
+    expect(isValidModel("ag", "gemini-3.8-flash")).toBe(true);
+    expect(isValidModel("ag", "gemini-3.8-flash-high")).toBe(true);
+    expect(isValidModel("ag", "gemini-3.7-flash")).toBe(true);
+    expect(isValidModel("ag", "gemini-3.7-flash-low")).toBe(true);
+    expect(isValidModel("ag", "claude-opus-4-6")).toBe(true);
+    expect(isValidModel("ag", "claude-opus-4-6-thinking")).toBe(true);
+  });
+
+  it("filters hidden tier models out of AI_MODELS", () => {
+    const agAiModels = AI_MODELS.filter(
+      (m) => m.provider === "ag" || m.provider === "antigravity",
+    );
+    const ids = agAiModels.map((m) => m.model);
+
+    expect(ids).toContain("gemini-3.8-flash");
+    expect(ids).toContain("gemini-3.7-flash");
+    expect(ids).toContain("claude-opus-4-6");
+    expect(ids).not.toContain("gemini-3.8-flash-high");
+    expect(ids).not.toContain("claude-opus-4-6-thinking");
   });
 });
