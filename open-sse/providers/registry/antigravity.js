@@ -70,6 +70,12 @@ export default {
       id: "gemini-3.8-flash",
       name: "Gemini 3.8 Flash",
       upstreamModelId: "gemini-3.8-flash-medium(medium)",
+      thinkingTiers: {
+        high: "gemini-3.8-flash-high",
+        medium: "gemini-3.8-flash-medium",
+        low: "gemini-3.8-flash-low",
+        default: "gemini-3.8-flash-medium",
+      },
     },
     {
       id: "gemini-3.7-flash-high",

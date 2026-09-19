@@ -9,6 +9,7 @@ import {
   extractThinking,
   stripThinkingSuffix,
 } from "../translator/concerns/thinkingUnified.js";
+import { budgetToLevel } from "../translator/concerns/thinking.js";
 import { FORMATS } from "../translator/formats.js";
 import {
   normalizeClaudePassthrough,
@@ -190,9 +191,6 @@ export async function handleChatCore({
     modelTargetFormat ||
     getTargetFormat(provider, credentials);
   if (useTransport && credentials) credentials.runtimeTransport = useTransport;
-  const stripList = getModelStrip(alias, model);
-  const upstreamModel = getModelUpstreamId(alias, model);
-
   // Inject provider-level thinking config override (only if client hasn't set)
   // on/off → extended type (body.thinking), none/low/medium/high → effort type (body.reasoning_effort)
   if (providerThinking?.mode && providerThinking.mode !== "auto") {
@@ -206,6 +204,17 @@ export async function handleChatCore({
       body = { ...body, reasoning_effort: mode };
     }
   }
+
+  // Extract thinking intent to resolve meta-models that route thinking tiers
+  const thinkingIntent = extractThinking(body);
+  let thinkingLevel = thinkingIntent?.level || null;
+  if (!thinkingLevel && thinkingIntent?.budget) {
+    thinkingLevel = budgetToLevel(thinkingIntent.budget);
+  } else if (!thinkingLevel && thinkingIntent?.mode === "none") {
+    thinkingLevel = "none";
+  }
+  const stripList = getModelStrip(alias, model);
+  const upstreamModel = getModelUpstreamId(alias, model, thinkingLevel);
 
   const clientRequestedStreaming =
     body.stream === true ||
