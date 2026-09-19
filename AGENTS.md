@@ -37,13 +37,14 @@ Pulling and merging upstream into the fork is **unreliable**:
 
 ## Fork divergence (local patches ahead of upstream)
 
-> Based on `HEAD` merged with upstream `v0.5.55`. Live check: `git log github/master..HEAD --oneline` — update this section after each upstream merge.
+> Based on `HEAD` merged with upstream `v0.5.81`. Live check: `git log github/master..HEAD --oneline` — update this section after each upstream merge.
 
 **What users actually notice:**
 
 - **Cleaner sidebar** — removed 9Remote and 9English promo buttons, links (`9remote.cc` / `9english.net`), and popup modal. Self-hosted fork doesn't need cross-promo; sidebar now only shows real navigation + Settings.
 - **Faster page load** — icon font trimmed 96% (3.8 MB → 133 KB) and preloaded with `font-display:swap`. Pages render immediately instead of blocking on the full icon bundle. Also fixes 12 tool-card icons (`restore` → `restart_alt`).
 - **New provider: Meta Muse Spark** — `api.meta.ai` now selectable in the provider list with its own icon (`open-sse/providers/registry/meta.js`).
+- **Antigravity meta-model routing** — requests to base models like `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.1-pro`, and `claude-opus-4-6` automatically route to their backend thinking tier (`-high`, `-medium`, `-low`, `-extra-low`, `-tiered(...)`, `-thinking`) based on `reasoning_effort` or thinking settings.
 - **No user impact** — one test fix for upstream rename `enableObservability` (stability only).
 
 **For merge agents:** preserve these fork files on `git pull github master`: `Sidebar.js`, `src/app/{globals.css,layout.js}`, `Dockerfile` (font build deps + `public/fonts` copy), `package.json` (`build` subset step), `public/i18n/*`, `*ToolCard.js`, `open-sse/providers/registry/meta.js`. Prefer `origin` for promo/font/build hunks, `github` for app logic. Bump tag suffix `-a` → `-b` → `-c` … if only infra changed.
