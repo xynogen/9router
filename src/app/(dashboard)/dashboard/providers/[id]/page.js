@@ -36,11 +36,7 @@ import {
   isOpenAICompatibleProvider,
   isAnthropicCompatibleProvider,
 } from "@/shared/constants/providers";
-import {
-  getModelsByProviderId,
-  getModelKind,
-  PROVIDER_META_MODELS,
-} from "@/shared/constants/models";
+import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
@@ -1101,9 +1097,6 @@ export default function ProviderDetailPage() {
     }
   };
 
-  const _selectedConnections = connections.filter((conn) =>
-    selectedConnectionIds.includes(conn.id),
-  );
   const allSelected =
     connections.length > 0 &&
     selectedConnectionIds.length === connections.length;
@@ -1383,19 +1376,6 @@ export default function ProviderDetailPage() {
       return !k || k === "llm";
     });
     const disabledSet = new Set(disabledModelIds);
-    // If a meta-model's tier was active (not disabled), unmark the base model as disabled
-    const metaMap =
-      PROVIDER_META_MODELS[providerStorageAlias] ||
-      PROVIDER_META_MODELS[providerId];
-    if (metaMap) {
-      for (const [baseId, meta] of Object.entries(metaMap)) {
-        const tiers = Object.values(meta.tiers || meta);
-        const hasActiveTier = tiers.some((t) => !disabledSet.has(t));
-        if (hasActiveTier) {
-          disabledSet.delete(baseId);
-        }
-      }
-    }
     const displayModels = allModels.filter((m) => !disabledSet.has(m.id));
     const disabledDisplayModels = allModels.filter((m) =>
       disabledSet.has(m.id),
@@ -2133,9 +2113,8 @@ export default function ProviderDetailPage() {
                   return !k || k === "llm";
                 })
                 .map((m) => m.id);
-              const activeIds = allIds.filter(
-                (id) => !disabledModelIds.includes(id),
-              );
+              const disabledSet = new Set(disabledModelIds);
+              const activeIds = allIds.filter((id) => !disabledSet.has(id));
               return (
                 <div className="flex gap-2">
                   {disabledModelIds.length > 0 && (

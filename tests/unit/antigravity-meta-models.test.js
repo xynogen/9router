@@ -213,7 +213,7 @@ describe("Antigravity meta-models discovery and visibility", () => {
     expect(visibleIds).toContain("gemini-3.1-pro");
     expect(visibleIds).toContain("claude-opus-4-6");
 
-    // Hidden backend tier targets
+    // Hidden backend tier targets and dot aliases
     expect(hiddenIds).toContain("gemini-3.8-flash-high");
     expect(hiddenIds).toContain("gemini-3.8-flash-medium");
     expect(hiddenIds).toContain("gemini-3.8-flash-low");
@@ -221,6 +221,7 @@ describe("Antigravity meta-models discovery and visibility", () => {
     expect(hiddenIds).toContain("gemini-3.7-flash-medium");
     expect(hiddenIds).toContain("gemini-3.7-flash-low");
     expect(hiddenIds).toContain("claude-opus-4-6-thinking");
+    expect(hiddenIds).toContain("claude-opus-4.6");
   });
 
   it("validates both base models and tiered models", () => {

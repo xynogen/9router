@@ -182,6 +182,7 @@ export const PROVIDER_META_MODELS = {
     },
     "claude-opus-4.6": {
       name: "Claude Opus 4.6",
+      hidden: true,
       tiers: {
         high: "claude-opus-4-6-thinking",
         medium: "claude-opus-4-6-thinking",
@@ -298,11 +299,13 @@ for (const [providerId, metaMap] of Object.entries(PROVIDER_META_MODELS)) {
     }
     // Add base meta-model if not already in models list
     if (!models.some((m) => m.id === id)) {
-      models.push({
+      const entry = {
         id,
         name: meta.name || id,
         thinkingTiers: tiers,
-      });
+      };
+      if (meta.hidden) entry.hidden = true;
+      models.push(entry);
     }
   }
 
