@@ -220,7 +220,7 @@ export default function ProviderDetailPage() {
       ? "xAI API Key"
       : providerId === "kimi"
         ? "Kimi API Key"
-        : providerId === "qoder"
+        : providerId === "qoder" || providerId === "qoder-cn"
           ? "PAT"
           : "API Key";
   // Resolve suffix "(level)" for a model when a thinking level is picked and the model supports it.
@@ -745,9 +745,9 @@ export default function ProviderDetailPage() {
       for (const model of models) {
         const modelId = model.id || model.name;
         if (!modelId) continue;
-
-        // Qoder model ID format may be "qoder/auto" or "auto", need to remove prefix
-        const cleanModelId = modelId.replace(/^qoder\//, "");
+        // Qoder model ID format may be "qoder/auto", "qoder-cn/auto" or "auto",
+        // need to remove the provider prefix before storing.
+        const cleanModelId = modelId.replace(/^(qoder-cn|qoder)\//, "");
         const alreadyExists =
           customModels.some(
             (entry) =>
@@ -1463,8 +1463,8 @@ export default function ProviderDetailPage() {
           Add Model
         </button>
 
-        {/* Import Qoder models button — only show for qoder provider */}
-        {providerId === "qoder" &&
+        {/* Import Qoder models button — only show for qoder/qoder-cn provider */}
+        {(providerId === "qoder" || providerId === "qoder-cn") &&
           connections.some((conn) => conn.isActive !== false) && (
             <button
               onClick={handleImportQoderModels}

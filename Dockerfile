@@ -33,8 +33,7 @@ ENV DATA_DIR=/app/data
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-# public/fonts subset must be served at /fonts — standalone's public is minimal, add subset explicitly
-COPY --from=builder /app/public/fonts ./public/fonts
+COPY --from=builder /app/public ./public
 COPY --from=builder /app/custom-server.js ./custom-server.js
 COPY --from=builder /app/open-sse ./open-sse
 # Next file tracing can omit sibling files; MITM runs server.js as a separate process.

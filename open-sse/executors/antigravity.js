@@ -360,12 +360,19 @@ export class AntigravityExecutor extends BaseExecutor {
 
     this._lastSessionId = transformedRequest.sessionId; // cached for buildHeaders (base.execute order)
 
+    // Official Antigravity client omits `requestType` entirely on the agent
+    // (chat) path. Sending `requestType: "agent"` here (or leaking it through
+    // from an upstream envelope via the ...body spread below) makes Google
+    // bucket the request and return a detail-free 429 RESOURCE_EXHAUSTED even
+    // with quota available. `image_gen` and
+    // `search` buckets are unaffected and keep their own requestType.
+    delete body.requestType;
+
     return {
       ...body,
       project: projectId,
       model: body.model || model,
       userAgent: "antigravity",
-      requestType: "agent",
       // High-weight fingerprint: identifies the request as the official Google One AI
       // client. Agent requests only (not image_gen). Missing = unrecognized client -> 403.
       enabledCreditTypes: ["GOOGLE_ONE_AI"],

@@ -83,6 +83,8 @@ describe("buildModelsList with noAuth providers (OpenCode Free)", () => {
       oc: [
         "muse-spark-1.2-contributor-free",
         "muse-spark-1.3-contributor-free",
+        "union-alpha",
+        "jev-1.13-free",
       ],
     });
 

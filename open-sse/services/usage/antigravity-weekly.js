@@ -4,10 +4,7 @@
  */
 
 import { U, parseResetTime, fetchWithTimeout } from "./shared.js";
-import {
-  ANTIGRAVITY_IDE_USER_AGENT,
-  ANTIGRAVITY_IDE_VERSION,
-} from "../../providers/shared.js";
+import { ANTIGRAVITY_IDE_USER_AGENT, ANTIGRAVITY_IDE_VERSION } from "../../providers/shared.js";
 
 // — Weekly quota summary config ——————————————————————————————
 const WEEKLY_CONFIG = {
@@ -28,13 +25,17 @@ export function _clearWeeklyCache() {
   weeklyCache.clear();
 }
 
-// — Group-name to stable key mapping ——————————————————————
-const GROUP_MATCHERS = [
-  { pattern: /gemini/i, key: "gemini_weekly", displayName: "Gemini (Weekly)" },
+// — Group-name and window to stable key mapping ——————————————————————
+const GROUP_CONFIGS = [
+  {
+    pattern: /gemini/i,
+    weekly: { key: "gemini_weekly", displayName: "Gemini (Weekly)" },
+    session: { key: "gemini_session", displayName: "Gemini (5h)" },
+  },
   {
     pattern: /claude|gpt/i,
-    key: "claude_gpt_weekly",
-    displayName: "Claude & GPT (Weekly)",
+    weekly: { key: "claude_gpt_weekly", displayName: "Claude & GPT (Weekly)" },
+    session: { key: "claude_gpt_session", displayName: "Claude & GPT (5h)" },
   },
 ];
 
@@ -67,33 +68,40 @@ export function parseWeeklyQuotaSummary(data) {
     for (const bucket of buckets) {
       if (!bucket || typeof bucket !== "object") continue;
 
-      // Identify weekly buckets by checking bucketId + displayName for "weekly"
-      const bucketText =
-        `${bucket.bucketId || ""} ${bucket.displayName || ""}`.toLowerCase();
-      if (!bucketText.includes("weekly")) continue;
+      const windowType = String(bucket.window || "").toLowerCase();
+      const bucketText = `${bucket.bucketId || ""} ${bucket.displayName || ""}`.toLowerCase();
+      const isWeekly = windowType === "weekly" || bucketText.includes("weekly");
+      const isSession = windowType === "5h" || bucketText.includes("five hour") || bucketText.includes("5h") || bucketText.includes("daily") || windowType === "daily";
 
-      // Skip disabled buckets
-      if (bucket.disabled === true) continue;
+      if (!isWeekly && !isSession) continue;
 
-      const remainingFraction = Number(bucket.remainingFraction);
+      // If a session (5h) bucket is marked disabled by upstream (because weekly was hit),
+      // keep it so the UI shows the 5h row, but with remainingFraction: 0.
+      // Disabled weekly buckets are truly disabled and skipped.
+      if (bucket.disabled === true && isWeekly) continue;
+
+      const remainingFraction = bucket.disabled === true ? 0 : Number(bucket.remainingFraction);
       if (!Number.isFinite(remainingFraction)) continue;
 
       // Match group to a known family
-      for (const matcher of GROUP_MATCHERS) {
-        if (matcher.pattern.test(displayName)) {
+      for (const config of GROUP_CONFIGS) {
+        if (config.pattern.test(displayName)) {
+          const target = isWeekly ? config.weekly : config.session;
+          if (result[target.key]) break; // first matching bucket per type wins
+
           const total = 1000;
           const remaining = Math.round(total * remainingFraction);
           const used = Math.max(0, total - remaining);
 
-          result[matcher.key] = {
+          result[target.key] = {
             used,
             total,
             resetAt: parseResetTime(bucket.resetTime),
             remainingPercentage: remainingFraction * 100,
             unlimited: false,
-            displayName: matcher.displayName,
+            displayName: target.displayName,
           };
-          break; // first matching bucket per family wins
+          break;
         }
       }
     }
@@ -105,11 +113,7 @@ export function parseWeeklyQuotaSummary(data) {
 /**
  * Fetch weekly quota summary — cached, deduped, never throws.
  */
-export async function fetchAntigravityWeeklyQuota(
-  accessToken,
-  projectId,
-  proxyOptions = null,
-) {
+export async function fetchAntigravityWeeklyQuota(accessToken, projectId, proxyOptions = null) {
   const key = cacheKey(accessToken, projectId);
 
   // Serve in-flight or cached
@@ -122,24 +126,19 @@ export async function fetchAntigravityWeeklyQuota(
       const url = WEEKLY_CONFIG.quotaSummaryApiUrl;
       if (!url) return {};
 
-      const response = await fetchWithTimeout(
-        url,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "User-Agent": WEEKLY_CONFIG.userAgent,
-            "Content-Type": "application/json",
-            "X-Client-Name": "antigravity",
-            "X-Client-Version": ANTIGRAVITY_IDE_VERSION,
-          },
-          body: JSON.stringify({
-            ...(projectId ? { project: projectId } : {}),
-          }),
+      const response = await fetchWithTimeout(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "User-Agent": WEEKLY_CONFIG.userAgent,
+          "Content-Type": "application/json",
+          "X-Client-Name": "antigravity",
+          "X-Client-Version": ANTIGRAVITY_IDE_VERSION,
         },
-        10000,
-        proxyOptions,
-      );
+        body: JSON.stringify({
+          ...(projectId ? { project: projectId } : {}),
+        }),
+      }, 10000, proxyOptions);
 
       if (!response.ok) return {};
 
@@ -155,10 +154,7 @@ export async function fetchAntigravityWeeklyQuota(
   try {
     const result = await promise;
     if (result && Object.keys(result).length > 0) {
-      weeklyCache.set(key, {
-        result,
-        expiresAt: Date.now() + WEEKLY_CACHE_TTL_MS,
-      });
+      weeklyCache.set(key, { result, expiresAt: Date.now() + WEEKLY_CACHE_TTL_MS });
     } else {
       weeklyCache.delete(key);
     }

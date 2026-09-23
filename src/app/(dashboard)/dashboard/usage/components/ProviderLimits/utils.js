@@ -23,12 +23,10 @@ export const QUOTA_SORT_OPTIONS = [
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 export function getConnectionLabel(connection) {
-  return (
-    connection.name?.trim() ||
-    connection.email?.trim() ||
-    connection.displayName?.trim() ||
-    null
-  );
+  return connection.name?.trim()
+    || connection.email?.trim()
+    || connection.displayName?.trim()
+    || null;
 }
 
 export function getConnectionQuotaRemaining(connection, quotaData) {
@@ -120,11 +118,7 @@ export function getConnectionsPageRange(pagination) {
   return { start, end };
 }
 
-export function getConnectionsEmptyMessage(
-  totals,
-  providerFilter,
-  accountFilter,
-) {
+export function getConnectionsEmptyMessage(totals, providerFilter, accountFilter) {
   if (!totals.eligibleConnections) {
     return {
       icon: "cloud_off",
@@ -241,20 +235,20 @@ export function formatResetTime(date) {
     if (diffMs <= 0) return "-";
 
     const totalMinutes = Math.ceil(diffMs / (1000 * 60));
-
+    
     // < 60 minutes: show only minutes
     if (totalMinutes < 60) {
       return `${totalMinutes}m`;
     }
-
+    
     const totalHours = Math.floor(totalMinutes / 60);
     const remainingMinutes = totalMinutes % 60;
-
+    
     // < 24 hours: show hours and minutes
     if (totalHours < 24) {
       return `${totalHours}h ${remainingMinutes}m`;
     }
-
+    
     // >= 24 hours: show days, hours, and minutes
     const days = Math.floor(totalHours / 24);
     const remainingHours = totalHours % 24;
@@ -329,37 +323,24 @@ export function getQuotaVisibilityKey(quota) {
 export function trimHiddenQuotaKeys(hidden = [], quotas = []) {
   if (!Array.isArray(hidden) || hidden.length === 0) return [];
   const validKeys = new Set(quotas.map(getQuotaVisibilityKey).filter(Boolean));
-  return [
-    ...new Set(
-      hidden.map((k) => String(k).trim()).filter((k) => validKeys.has(k)),
-    ),
-  ];
+  return [...new Set(hidden.map((k) => String(k).trim()).filter((k) => validKeys.has(k)))];
 }
 
 function getProviderHiddenQuotaSet(provider, quotaVisibility, quotas = []) {
   const hidden = quotaVisibility?.[provider]?.hidden;
   if (!Array.isArray(hidden) || hidden.length === 0) return new Set();
-  const trimmed =
-    quotas.length > 0 ? trimHiddenQuotaKeys(hidden, quotas) : hidden;
+  const trimmed = quotas.length > 0 ? trimHiddenQuotaKeys(hidden, quotas) : hidden;
   return new Set(trimmed.map(String));
 }
 
-export function filterQuotasByVisibility(
-  provider,
-  quotas = [],
-  quotaVisibility = {},
-) {
+export function filterQuotasByVisibility(provider, quotas = [], quotaVisibility = {}) {
   if (!Array.isArray(quotas) || quotas.length === 0) return [];
   const hidden = getProviderHiddenQuotaSet(provider, quotaVisibility, quotas);
   if (hidden.size === 0) return quotas;
   return quotas.filter((quota) => !hidden.has(getQuotaVisibilityKey(quota)));
 }
 
-export function getHiddenQuotaRows(
-  provider,
-  quotas = [],
-  quotaVisibility = {},
-) {
+export function getHiddenQuotaRows(provider, quotas = [], quotaVisibility = {}) {
   if (!Array.isArray(quotas) || quotas.length === 0) return [];
   const hidden = getProviderHiddenQuotaSet(provider, quotaVisibility, quotas);
   if (hidden.size === 0) return [];
@@ -396,65 +377,112 @@ export function parseQuotaData(provider, data) {
         if (data.quotas) {
           const entries = Object.entries(data.quotas);
           const weeklyKeys = new Set(["gemini_weekly", "claude_gpt_weekly"]);
-          const geminiModels = entries.filter(
-            ([k]) => k.startsWith("gemini-") && !k.includes("image"),
-          );
+          const sessionKeys = new Set(["gemini_session", "claude_gpt_session"]);
+          const summaryKeys = new Set([...weeklyKeys, ...sessionKeys]);
+          const geminiModels = entries.filter(([k]) => k.startsWith("gemini-") && !k.includes("image"));
           const claudeModels = entries.filter(([k]) => k.startsWith("claude-"));
           const imageModels = entries.filter(([k]) => k.includes("image"));
-          const weeklyModels = entries.filter(([k]) => weeklyKeys.has(k));
-          const otherModels = entries.filter(
-            ([k]) =>
-              !k.startsWith("gemini-") &&
-              !k.startsWith("claude-") &&
-              !k.includes("image") &&
-              !weeklyKeys.has(k),
-          );
+          const summaryModels = entries.filter(([k]) => summaryKeys.has(k));
+          const otherModels = entries.filter(([k]) => !k.startsWith("gemini-") && !k.startsWith("claude-") && !k.includes("image") && !summaryKeys.has(k));
 
-          if (geminiModels.length > 0) {
+          // Summary keys from retrieveUserQuotaSummary
+          const hasGeminiWeekly = Boolean(data.quotas.gemini_weekly);
+          const hasGeminiSession = Boolean(data.quotas.gemini_session);
+          const hasClaudeWeekly = Boolean(data.quotas.claude_gpt_weekly);
+          const hasClaudeSession = Boolean(data.quotas.claude_gpt_session);
+
+          // 1. Gemini Family:
+          if (hasGeminiSession) {
+            summaryModels.filter(([k]) => k === "gemini_session").forEach(([modelKey, quota]) => {
+              normalizedQuotas.push({
+                name: quota.displayName || modelKey,
+                modelKey,
+                used: quota.used || 0,
+                total: quota.total || 0,
+                resetAt: quota.resetAt || null,
+                remainingPercentage: quota.remainingPercentage,
+              });
+            });
+          } else if (geminiModels.length > 0) {
             const rep = geminiModels.reduce((min, cur) =>
-              (cur[1].remainingPercentage ?? 100) <
-              (min[1].remainingPercentage ?? 100)
-                ? cur
-                : min,
+              (cur[1].remainingPercentage ?? 100) < (min[1].remainingPercentage ?? 100) ? cur : min
             )[1];
-            normalizedQuotas.push({
-              name: "Gemini (Flash / Pro)",
-              modelKey: "gemini",
-              used: rep.used || 0,
-              total: rep.total || 0,
-              resetAt: rep.resetAt || null,
-              remainingPercentage: rep.remainingPercentage,
+            // Only show synthesized Gemini row if its resetAt differs from weekly (i.e. it represents a separate 5h window)
+            const weeklyResetAt = data.quotas.gemini_weekly?.resetAt;
+            const isDuplicateOfWeekly = hasGeminiWeekly && rep.resetAt === weeklyResetAt && (rep.remainingPercentage ?? 0) === 0;
+
+            if (!isDuplicateOfWeekly) {
+              normalizedQuotas.push({
+                name: "Gemini (Flash / Pro)",
+                modelKey: "gemini",
+                used: rep.used || 0,
+                total: rep.total || 0,
+                resetAt: rep.resetAt || null,
+                remainingPercentage: rep.remainingPercentage,
+              });
+            }
+          }
+
+          // Show Gemini weekly row if present
+          if (hasGeminiWeekly) {
+            summaryModels.filter(([k]) => k === "gemini_weekly").forEach(([modelKey, quota]) => {
+              normalizedQuotas.push({
+                name: quota.displayName || modelKey,
+                modelKey,
+                used: quota.used || 0,
+                total: quota.total || 0,
+                resetAt: quota.resetAt || null,
+                remainingPercentage: quota.remainingPercentage,
+              });
             });
           }
 
-          if (claudeModels.length > 0) {
+          // 2. Claude & GPT Family:
+          if (hasClaudeSession) {
+            summaryModels.filter(([k]) => k === "claude_gpt_session").forEach(([modelKey, quota]) => {
+              normalizedQuotas.push({
+                name: quota.displayName || modelKey,
+                modelKey,
+                used: quota.used || 0,
+                total: quota.total || 0,
+                resetAt: quota.resetAt || null,
+                remainingPercentage: quota.remainingPercentage,
+              });
+            });
+          } else if (claudeModels.length > 0) {
             const rep = claudeModels.reduce((min, cur) =>
-              (cur[1].remainingPercentage ?? 100) <
-              (min[1].remainingPercentage ?? 100)
-                ? cur
-                : min,
+              (cur[1].remainingPercentage ?? 100) < (min[1].remainingPercentage ?? 100) ? cur : min
             )[1];
-            normalizedQuotas.push({
-              name: "Claude (Sonnet / Opus)",
-              modelKey: "claude",
-              used: rep.used || 0,
-              total: rep.total || 0,
-              resetAt: rep.resetAt || null,
-              remainingPercentage: rep.remainingPercentage,
+            const weeklyResetAt = data.quotas.claude_gpt_weekly?.resetAt;
+            const isDuplicateOfWeekly = hasClaudeWeekly && rep.resetAt === weeklyResetAt && (rep.remainingPercentage ?? 0) === 0;
+
+            if (!isDuplicateOfWeekly) {
+              normalizedQuotas.push({
+                name: "Claude (Sonnet / Opus)",
+                modelKey: "claude",
+                used: rep.used || 0,
+                total: rep.total || 0,
+                resetAt: rep.resetAt || null,
+                remainingPercentage: rep.remainingPercentage,
+              });
+            }
+          }
+
+          // Show Claude & GPT weekly row if present
+          if (hasClaudeWeekly) {
+            summaryModels.filter(([k]) => k === "claude_gpt_weekly").forEach(([modelKey, quota]) => {
+              normalizedQuotas.push({
+                name: quota.displayName || modelKey,
+                modelKey,
+                used: quota.used || 0,
+                total: quota.total || 0,
+                resetAt: quota.resetAt || null,
+                remainingPercentage: quota.remainingPercentage,
+              });
             });
           }
 
-          weeklyModels.forEach(([modelKey, quota]) => {
-            normalizedQuotas.push({
-              name: quota.displayName || modelKey,
-              modelKey,
-              used: quota.used || 0,
-              total: quota.total || 0,
-              resetAt: quota.resetAt || null,
-              remainingPercentage: quota.remainingPercentage,
-            });
-          });
-
+          // 3. Standalone Image Generation Models (unique usage)
           imageModels.forEach(([modelKey, quota]) => {
             normalizedQuotas.push({
               name: quota.displayName || modelKey,
@@ -466,16 +494,23 @@ export function parseQuotaData(provider, data) {
             });
           });
 
-          otherModels.forEach(([modelKey, quota]) => {
-            normalizedQuotas.push({
-              name: quota.displayName || modelKey,
-              modelKey,
-              used: quota.used || 0,
-              total: quota.total || 0,
-              resetAt: quota.resetAt || null,
-              remainingPercentage: quota.remainingPercentage,
+          // 4. Other models:
+          // In Antigravity, GPT-OSS is explicitly documented by Google as part of the "Claude and GPT models" group:
+          // ("Models within this group: Claude Opus, Claude Sonnet, GPT-OSS").
+          // When summary quotas (claude_gpt_session / claude_gpt_weekly) are present, GPT-OSS is already represented
+          // by the "Claude & GPT" family rows. We only include otherModels if no summary exists for that pool.
+          if (!hasClaudeWeekly && !hasClaudeSession) {
+            otherModels.forEach(([modelKey, quota]) => {
+              normalizedQuotas.push({
+                name: quota.displayName || modelKey,
+                modelKey,
+                used: quota.used || 0,
+                total: quota.total || 0,
+                resetAt: quota.resetAt || null,
+                remainingPercentage: quota.remainingPercentage,
+              });
             });
-          });
+          }
         }
         break;
 
@@ -484,14 +519,11 @@ export function parseQuotaData(provider, data) {
           Object.entries(data.quotas).forEach(([quotaType, quota]) => {
             let displayName = quotaType;
             if (quotaType === "spark_session") displayName = "Spark (5h)";
-            else if (quotaType === "spark_weekly")
-              displayName = "Spark (Weekly)";
+            else if (quotaType === "spark_weekly") displayName = "Spark (Weekly)";
             else if (quotaType === "session") displayName = "5h";
             else if (quotaType === "weekly") displayName = "Weekly";
-            else if (quotaType === "review_session")
-              displayName = "Review (5h)";
-            else if (quotaType === "review_weekly")
-              displayName = "Review (Weekly)";
+            else if (quotaType === "review_session") displayName = "Review (5h)";
+            else if (quotaType === "review_weekly") displayName = "Review (Weekly)";
 
             normalizedQuotas.push({
               name: displayName,
@@ -519,6 +551,7 @@ export function parseQuotaData(provider, data) {
         break;
 
       case "qoder":
+      case "qoder-cn":
         // Qoder ships a `user` quota and (optionally) an `organization`
         // quota, both with same shape: {total, used, remaining, unit, resetAt}.
         // Skip an organization bucket when its total is 0 — most personal
@@ -529,19 +562,11 @@ export function parseQuotaData(provider, data) {
         // as "348%". The percentage is computed from used/total instead.
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([quotaType, quota]) => {
-            if (
-              quotaType === "organization" &&
-              (!quota || (Number(quota.total) || 0) === 0)
-            ) {
+            if (quotaType === "organization" && (!quota || (Number(quota.total) || 0) === 0)) {
               return;
             }
             normalizedQuotas.push({
-              name:
-                quotaType === "user"
-                  ? "Personal"
-                  : quotaType === "organization"
-                    ? "Organization"
-                    : quotaType,
+              name: quotaType === "user" ? "Personal" : quotaType === "organization" ? "Organization" : quotaType,
               used: quota.used || 0,
               total: quota.total || 0,
               unit: quota.unit,
@@ -567,14 +592,8 @@ export function parseQuotaData(provider, data) {
               name,
               used: quota.used || 0,
               total: quota.total || 0,
-              remaining:
-                quota.remaining !== undefined
-                  ? quota.remaining
-                  : Math.max(0, (quota.total || 100) - (quota.used || 0)),
-              remainingPercentage:
-                quota.remainingPercentage !== undefined
-                  ? quota.remainingPercentage
-                  : calculatePercentage(quota.used, quota.total),
+              remaining: quota.remaining !== undefined ? quota.remaining : Math.max(0, (quota.total || 100) - (quota.used || 0)),
+              remainingPercentage: quota.remainingPercentage !== undefined ? quota.remainingPercentage : calculatePercentage(quota.used, quota.total),
               resetAt: quota.resetAt || null,
             });
           });
@@ -682,7 +701,7 @@ export function parseQuotaData(provider, data) {
         break;
 
       case "ollama":
-        // Session (5h) / Weekly (7d) usage % from ollama.com/api/usage.
+        // Session (5h) / Weekly (7d) / Monthly usage % from ollama.com/api/usage.
         // remainingPercentage only — no absolute remaining (UI treats remaining as %).
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
@@ -739,10 +758,7 @@ export function parseQuotaData(provider, data) {
       "weekly opus (7d)": 3,
       "weekly sonnet (7d)": 4,
     };
-    normalizedQuotas.sort(
-      (a, b) =>
-        (CLAUDE_QUOTA_ORDER[a.name] ?? 99) - (CLAUDE_QUOTA_ORDER[b.name] ?? 99),
-    );
+    normalizedQuotas.sort((a, b) => (CLAUDE_QUOTA_ORDER[a.name] ?? 99) - (CLAUDE_QUOTA_ORDER[b.name] ?? 99));
     return normalizedQuotas;
   }
 
@@ -750,15 +766,15 @@ export function parseQuotaData(provider, data) {
   const modelOrder = getModelsByProviderId(provider);
   if (modelOrder.length > 0) {
     const orderMap = new Map(modelOrder.map((m, i) => [m.id, i]));
-
+    
     normalizedQuotas.sort((a, b) => {
       // Use modelKey for antigravity (mapped to family anchor), otherwise use name
       let keyA = a.modelKey || a.name;
       let keyB = b.modelKey || b.name;
-      if (keyA === "gemini") keyA = "gemini-3.8-flash-high";
-      if (keyA === "claude") keyA = "claude-sonnet-4-6";
-      if (keyB === "gemini") keyB = "gemini-3.8-flash-high";
-      if (keyB === "claude") keyB = "claude-sonnet-4-6";
+      if (keyA === "gemini" || keyA === "gemini_session") keyA = "gemini-3.8-flash-high";
+      if (keyA === "claude" || keyA === "claude_gpt_session") keyA = "claude-sonnet-4-6";
+      if (keyB === "gemini" || keyB === "gemini_session") keyB = "gemini-3.8-flash-high";
+      if (keyB === "claude" || keyB === "claude_gpt_session") keyB = "claude-sonnet-4-6";
       const orderA = orderMap.get(keyA) ?? 999;
       const orderB = orderMap.get(keyB) ?? 999;
       return orderA - orderB;

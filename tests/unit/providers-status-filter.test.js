@@ -9,6 +9,7 @@ describe("providers status filter", () => {
   it("exposes all/active/inactive/none options", () => {
     expect(STATUS_FILTER_OPTIONS.map((o) => o.value)).toEqual([
       "all",
+      "connected",
       "active",
       "inactive",
       "none",
