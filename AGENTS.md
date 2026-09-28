@@ -47,7 +47,7 @@ Pulling and merging upstream into the fork is **unreliable**:
 - **Antigravity meta-model routing** — requests to base models like `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.1-pro`, and `claude-opus-4-6` automatically route to their backend thinking tier (`-high`, `-medium`, `-low`, `-extra-low`, `-tiered(...)`, `-thinking`) based on `reasoning_effort` or thinking settings.
 - **No user impact** — one test fix for upstream rename `enableObservability` (stability only).
 
-**For merge agents:** preserve these fork files on `git pull github master`: `Sidebar.js`, `src/app/{globals.css,layout.js}`, `Dockerfile` (font build deps + `public/fonts` copy), `package.json` (`build` subset step), `public/i18n/*`, `*ToolCard.js`, `open-sse/providers/registry/meta.js`. Prefer `origin` for promo/font/build hunks, `github` for app logic. Bump tag suffix `-a` → `-b` → `-c` … if only infra changed.
+**For merge agents:** preserve these fork files on `git pull github master`: `Sidebar.js`, `src/app/{globals.css,layout.js}`, `Dockerfile` (font build deps + `public/fonts` copy), `package.json` (`build` subset step), `public/i18n/*`, `*ToolCard.js`, `open-sse/providers/registry/meta.js`. Prefer `origin` for promo/font/build hunks, `github` for app logic. Bump tag suffix `-a` → `-b` → `-c` … for any re-release on the same upstream version (infra or fork code fix).
 
 ## Current CI behavior (this repo)
 
@@ -86,7 +86,7 @@ Some repos in this owner's ecosystem use **tag-triggered release workflows**. Pa
 
 - Releases: `X.Y` or `X.Y.Z` → cleanest version strings, **must match `package.json` `version`**
 - Pre-releases: `X.Y-rcN`, `X.Y-beta1`
-- **CI/build iteration suffixes**: `X.Y.Z-a`, `X.Y.Z-b`, `X.Y.Z-c`, … → used when fixing CI/CD or build infra **without** changing app code. These tags intentionally **do not match** `package.json` and **must not** trigger a `package.json` version bump. Increment the letter (`-a` → `-b` → `-c` → `-d` …) for each re-run on the same app version.
+- **Re-release suffixes**: `X.Y.Z-a`, `X.Y.Z-b`, `X.Y.Z-c`, … → used for any re-release on the same upstream version: CI/CD or build infra fixes, **and** fork-side code fixes (e.g. a broken merge resolution, a fork patch bug). `package.json` `version` tracks upstream, so a fork fix does not bump it. These tags intentionally **do not match** `package.json` and **must not** trigger a `package.json` version bump. Increment the letter (`-a` → `-b` → `-c` → `-d` …) for each re-run on the same app version.
 - Anything else (e.g. `3.7-test`) still triggers a full build + release publish
 
 ### Agent-driven release flow
