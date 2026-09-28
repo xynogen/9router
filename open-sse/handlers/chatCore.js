@@ -27,11 +27,8 @@ import {
   PROVIDER_ID_TO_ALIAS,
 } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
-import {
-  createErrorResult,
-  parseUpstreamError,
-  formatProviderError,
-} from "../utils/error.js";
+import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
+import { upstreamResponseHeaders } from "../utils/upstreamHeaders.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
 import {
@@ -828,7 +825,7 @@ export async function handleChatCore({
       );
     }
     reqLogger.logError(new Error(message), finalBody || translatedBody);
-    return createErrorResult(statusCode, errMsg, resetsAtMs);
+    return createErrorResult(statusCode, errMsg, resetsAtMs, upstreamResponseHeaders(providerResponse.headers));
   }
 
   const sharedCtx = {

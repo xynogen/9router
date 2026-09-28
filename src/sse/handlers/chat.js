@@ -15,16 +15,9 @@ import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
 import { getTransform as getPxpipeTransform } from "@/lib/pxpipe/loader.js";
 import { appendPxpipeEvent } from "@/lib/pxpipe/events.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
-import {
-  handleComboChat,
-  handleFusionChat,
-  detectRequiredCapabilities,
-} from "open-sse/services/combo.js";
-import {
-  augmentModelsWithCapacityAdapter,
-  withCapacityAdapterStripping,
-  getActiveAdapterStrategy,
-} from "open-sse/services/capacityAdapter.js";
+import { upstreamResponseHeaders } from "open-sse/utils/upstreamHeaders.js";
+import { handleComboChat, handleFusionChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
+import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy } from "open-sse/services/capacityAdapter.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
@@ -303,6 +296,7 @@ async function handleSingleModelChat(
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;
+  let lastHeaders = null;
 
   while (true) {
     const credentials = await getProviderCredentials(
@@ -315,20 +309,9 @@ async function handleSingleModelChat(
     if (!credentials || credentials.allRateLimited) {
       if (credentials?.allRateLimited) {
         const errorMsg = lastError || credentials.lastError || "Unavailable";
-        const status =
-          lastStatus ||
-          Number(credentials.lastErrorCode) ||
-          HTTP_STATUS.SERVICE_UNAVAILABLE;
-        log.warn(
-          "CHAT",
-          `[${provider}/${model}] ${errorMsg} (${credentials.retryAfterHuman})`,
-        );
-        return unavailableResponse(
-          status,
-          `[${provider}/${model}] ${errorMsg}`,
-          credentials.retryAfter,
-          credentials.retryAfterHuman,
-        );
+        const status = lastStatus || Number(credentials.lastErrorCode) || HTTP_STATUS.SERVICE_UNAVAILABLE;
+        log.warn("CHAT", `[${provider}/${model}] ${errorMsg} (${credentials.retryAfterHuman})`);
+        return unavailableResponse(status, `[${provider}/${model}] ${errorMsg}`, credentials.retryAfter, credentials.retryAfterHuman, lastHeaders);
       }
       if (excludeConnectionIds.size === 0) {
         log.warn("AUTH", `No active credentials for provider: ${provider}`);
@@ -338,10 +321,7 @@ async function handleSingleModelChat(
         );
       }
       log.warn("CHAT", "No more accounts available", { provider });
-      return errorResponse(
-        lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE,
-        lastError || "All accounts unavailable",
-      );
+      return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable", lastHeaders);
     }
 
     // Account selection shown in the unified "▶" line (acc:...)
@@ -462,6 +442,7 @@ async function handleSingleModelChat(
       excludeConnectionIds.add(credentials.connectionId);
       lastError = result.error;
       lastStatus = result.status;
+      lastHeaders = upstreamResponseHeaders(result.response?.headers);
       continue;
     }
 

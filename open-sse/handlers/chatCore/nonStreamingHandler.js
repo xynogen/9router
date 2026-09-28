@@ -7,6 +7,7 @@ import {
   filterUsageForFormat,
 } from "../../utils/usageTracking.js";
 import { createErrorResult } from "../../utils/error.js";
+import { upstreamResponseHeaders } from "../../utils/upstreamHeaders.js";
 import { HTTP_STATUS } from "../../config/runtimeConfig.js";
 import { parseSSEToOpenAIResponse } from "./sseToJsonHandler.js";
 import { unwrapClineEnvelope } from "../../shared/clineEnvelope.js";
@@ -567,14 +568,8 @@ export async function handleNonStreamingResponse({
 
   return {
     success: true,
-    response: new Response(
-      JSON.stringify(restoreToolNames(translatedResponse, toolNameMap)),
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-      },
-    ),
+    response: new Response(JSON.stringify(restoreToolNames(translatedResponse, toolNameMap)), {
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", ...upstreamResponseHeaders(providerResponse.headers) }
+    })
   };
 }

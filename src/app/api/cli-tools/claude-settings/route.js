@@ -158,6 +158,11 @@ export async function POST(request) {
         : `${env.ANTHROPIC_BASE_URL}/v1`;
     }
 
+    // Keep an existing token (real key or earlier config); only add when absent — Reset clears it.
+    if (currentSettings.env?.ANTHROPIC_AUTH_TOKEN) {
+      delete env.ANTHROPIC_AUTH_TOKEN;
+    }
+
     // Merge new env with existing settings
     const newSettings = {
       ...currentSettings,
