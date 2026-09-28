@@ -82,8 +82,7 @@ async function fetchClaudeUsageRaw(accessToken, proxyOptions = null) {
         "anthropic-version": CLAUDE_CONFIG.apiVersion,
         "User-Agent": CLAUDE_CONFIG.userAgent,
       },
-      proxyOptions,
-    );
+    }, proxyOptions);
 
     if (oauthResponse.ok) {
       const data = await oauthResponse.json();
