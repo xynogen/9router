@@ -160,6 +160,24 @@ export const PROVIDER_META_MODELS = {
         default: "gemini-pro-agent",
       },
     },
+    "claude-sonnet-5-5": {
+      name: "Claude Sonnet 5.5",
+      tiers: {
+        high: "claude-sonnet-5-5-high",
+        medium: "claude-sonnet-5-5-medium",
+        low: "claude-sonnet-5-5-low",
+        default: "claude-sonnet-5-5-high",
+      },
+    },
+    "claude-opus-5-5": {
+      name: "Claude Opus 5.5",
+      tiers: {
+        high: "claude-opus-5-5-high",
+        medium: "claude-opus-5-5-medium",
+        low: "claude-opus-5-5-low",
+        default: "claude-opus-5-5-high",
+      },
+    },
     "claude-opus-4-6": {
       name: "Claude Opus 4.6",
       tiers: {
