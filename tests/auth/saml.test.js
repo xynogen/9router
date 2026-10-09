@@ -1,12 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
+import { registerHooks } from "node:module";
+
+// ponytail: Node >=22.15 resolves the Next.js alias natively; no test-only loader file.
+const hooks = registerHooks({
+  resolve(specifier, context, nextResolve) {
+    return nextResolve(specifier.startsWith("@/")
+      ? new URL(`../../src/${specifier.slice(2)}`, import.meta.url).href
+      : specifier, context);
+  },
+});
+
+const {
   formatX509Certificate,
   isSamlConfigured,
   generateSamlMetadata,
   pickSamlEmail,
   pickSamlDisplayName,
-} from "../../src/lib/auth/saml.js";
+} = await import("../../src/lib/auth/saml.js");
+hooks.deregister();
 
 test("formatX509Certificate normalizes Base64 strings into PEM blocks", () => {
   const rawBase64 = "MIIC1234567890123456789012345678901234567890123456789012345678901234567890";

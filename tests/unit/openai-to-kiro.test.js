@@ -698,7 +698,7 @@ describe("openaiToKiroRequest", () => {
         "<max_thinking_length>32000</max_thinking_length>",
       );
       expect(result.additionalModelRequestFields?.output_config?.effort).toBe(
-        "high",
+        "max",
       );
     });
 

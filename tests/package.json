@@ -5,7 +5,9 @@
   "type": "module",
   "description": "Unit tests for 9router embeddings endpoint",
   "scripts": {
-    "test": "vitest run --reporter=verbose",
+    "test": "npm run test:node && npm run test:vitest",
+    "test:node": "node --test unit/cline-auth.test.js unit/kimchi.test.js unit/kimchi-strip-reasoning.test.js auth/saml.test.js",
+    "test:vitest": "vitest run --reporter=verbose",
     "test:watch": "vitest --reporter=verbose"
   },
   "devDependencies": {
@@ -13,6 +15,6 @@
     "vitest": "^4.0.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.15"
   }
 }

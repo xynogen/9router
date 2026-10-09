@@ -106,8 +106,8 @@ function extractCustomToolInput(argumentsValue) {
 }
 
 function openAICompletionToResponses(responseBody, customToolNames = null) {
-  const choice = responseBody?.choices?.[0];
-  if (!choice) return responseBody;
+  const choice = responseBody?.choices?.[0] || {};
+  const responseId = `resp_${responseBody.id || crypto.randomUUID()}`.replace(/^resp_chatcmpl-/, "resp_");
 
   const message = choice.message || {};
   const output = [];
@@ -116,6 +116,7 @@ function openAICompletionToResponses(responseBody, customToolNames = null) {
   const reasoning = message.reasoning_content || message.reasoning;
   if (typeof reasoning === "string" && reasoning.length > 0) {
     output.push({
+      id: `rs_${responseId}`,
       type: RESPONSES_ITEM.REASONING,
       summary: [{ type: RESPONSES_ITEM.SUMMARY_TEXT, text: reasoning }],
     });
@@ -123,8 +124,10 @@ function openAICompletionToResponses(responseBody, customToolNames = null) {
 
   // Assistant text → a message item with output_text content.
   const text = typeof message.content === "string" ? message.content : "";
-  if (text.length > 0) {
+  if (text.length > 0 || (!reasoning && !message.tool_calls?.length)) {
     output.push({
+      id: `msg_${responseId}`,
+      status: "completed",
       type: RESPONSES_ITEM.MESSAGE,
       role: ROLE.ASSISTANT,
       content: [{ type: RESPONSES_ITEM.OUTPUT_TEXT, text, annotations: [] }],
@@ -135,12 +138,14 @@ function openAICompletionToResponses(responseBody, customToolNames = null) {
   for (const tc of message.tool_calls || []) {
     const fn = tc.function || {};
     const custom = customToolNames?.has(fn.name);
+    const callId = tc.id || `call_${crypto.randomUUID()}`;
     output.push({
+      status: "completed",
       type: custom
         ? RESPONSES_ITEM.CUSTOM_TOOL_CALL
         : RESPONSES_ITEM.FUNCTION_CALL,
-      id: `${custom ? "ctc" : "fc"}_${tc.id || ""}`,
-      call_id: tc.id || "",
+      id: `${custom ? "ctc" : "fc"}_${callId}`,
+      call_id: callId,
       name: fn.name || "",
       ...(custom
         ? { input: extractCustomToolInput(fn.arguments) }
@@ -162,10 +167,10 @@ function openAICompletionToResponses(responseBody, customToolNames = null) {
         : choice.finish_reason || "completed";
 
   return {
-    id: `resp_${responseBody.id || ""}`.replace(/^resp_chatcmpl-/, "resp_"),
+    id: responseId,
     object: "response",
     created_at: responseBody.created || Math.floor(Date.now() / 1000),
-    model: responseBody.model || "unknown",
+    ...(responseBody.model !== undefined && { model: responseBody.model }),
     status,
     background: false,
     error: null,
@@ -190,6 +195,13 @@ export function translateNonStreamingResponse(
   customToolNames = null,
 ) {
   if (targetFormat === sourceFormat) return responseBody;
+  // Finish the provider → OpenAI → Responses bridge, not just its first leg.
+  if (sourceFormat === FORMATS.OPENAI_RESPONSES && targetFormat !== FORMATS.OPENAI) {
+    return openAICompletionToResponses(
+      translateNonStreamingResponse(responseBody, targetFormat, FORMATS.OPENAI),
+      customToolNames,
+    );
+  }
   // Provider responded in OpenAI Chat Completions shape but the client speaks
   // Responses API — convert so tool_calls/text surface as Responses `output`.
   if (

@@ -12,14 +12,13 @@
 
 import { describe, it, expect } from "vitest";
 import fs from "fs";
-import path from "path";
 
 // Read the source file and verify the config entry is present.
 // testUtils.js is a Next.js server file so we inspect the source text
 // rather than importing it (avoids next/server bootstrap requirements).
 
 const src = fs.readFileSync(
-  path.resolve("../src/app/api/providers/[id]/test/testUtils.js"),
+  new URL("../../src/app/api/providers/[id]/test/testUtils.js", import.meta.url),
   "utf-8"
 );
 

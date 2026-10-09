@@ -14,10 +14,9 @@
 
 import { describe, it, expect } from "vitest";
 import fs from "fs";
-import path from "path";
 
 const src = fs.readFileSync(
-  path.resolve("../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/index.js"),
+  new URL("../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/index.js", import.meta.url),
   "utf-8"
 );
 

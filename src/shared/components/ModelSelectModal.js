@@ -43,15 +43,12 @@ const LIVE_CATALOG_PROVIDERS = ["cursor", "cline", "clinepass", "zed"];
 // avoids duplicate rows. There is no per-connection metadata to preserve beyond
 // {id,name}. Empty array means "nothing live" so callers keep the static fallback.
 function useLiveProviderModels(isOpen, connectionIds, label) {
-  const [models, setModels] = useState([]);
+  const [catalog, setCatalog] = useState({ idsKey: "", models: [] });
   const idsKey = (connectionIds ?? []).join("|");
 
   useEffect(() => {
     const ids = idsKey ? idsKey.split("|") : [];
-    if (!isOpen || ids.length === 0) {
-      setModels([]);
-      return undefined;
-    }
+    if (!isOpen || ids.length === 0) return undefined;
 
     let cancelled = false;
     Promise.all(
@@ -67,18 +64,19 @@ function useLiveProviderModels(isOpen, connectionIds, label) {
       .then((modelLists) => {
         if (cancelled) return;
         const seen = new Set();
-        setModels(
-          modelLists.flat().filter((model) => {
+        setCatalog({
+          idsKey,
+          models: modelLists.flat().filter((model) => {
             if (!model?.id || seen.has(model.id)) return false;
             seen.add(model.id);
             return true;
           }),
-        );
+        });
       })
       .catch((error) => {
         // Do not hide the static fallback when the account catalog is unavailable.
         console.warn(`Unable to load ${label} models for selector:`, error);
-        if (!cancelled) setModels([]);
+        if (!cancelled) setCatalog({ idsKey, models: [] });
       });
 
     return () => {
@@ -86,7 +84,7 @@ function useLiveProviderModels(isOpen, connectionIds, label) {
     };
   }, [isOpen, idsKey, label]);
 
-  return models;
+  return isOpen && idsKey && catalog.idsKey === idsKey ? catalog.models : [];
 }
 
 export default function ModelSelectModal({
@@ -143,71 +141,79 @@ export default function ModelSelectModal({
   const clinepassModels = useLiveProviderModels(isOpen, clinepassConnectionIds, "ClinePass");
   const zedModels = useLiveProviderModels(isOpen, zedConnectionIds, "Zed");
 
-  const fetchCombos = async () => {
-    try {
-      const res = await fetch("/api/combos");
-      if (!res.ok) throw new Error(`Failed to fetch combos: ${res.status}`);
-      const data = await res.json();
-      setCombos(data.combos || []);
-    } catch (error) {
-      console.error("Error fetching combos:", error);
-      setCombos([]);
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) fetchCombos();
+    if (!isOpen) return;
+    let cancelled = false;
+    const fetchCombos = async () => {
+      try {
+        const res = await fetch("/api/combos");
+        if (!res.ok) throw new Error(`Failed to fetch combos: ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) setCombos(data.combos || []);
+      } catch (error) {
+        console.error("Error fetching combos:", error);
+        if (!cancelled) setCombos([]);
+      }
+    };
+    fetchCombos();
+    return () => { cancelled = true; };
   }, [isOpen]);
 
-  const fetchProviderNodes = async () => {
-    try {
-      const res = await fetch("/api/provider-nodes");
-      if (!res.ok)
-        throw new Error(`Failed to fetch provider nodes: ${res.status}`);
-      const data = await res.json();
-      setProviderNodes(data.nodes || []);
-    } catch (error) {
-      console.error("Error fetching provider nodes:", error);
-      setProviderNodes([]);
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) fetchProviderNodes();
+    if (!isOpen) return;
+    let cancelled = false;
+    const fetchProviderNodes = async () => {
+      try {
+        const res = await fetch("/api/provider-nodes");
+        if (!res.ok)
+          throw new Error(`Failed to fetch provider nodes: ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) setProviderNodes(data.nodes || []);
+      } catch (error) {
+        console.error("Error fetching provider nodes:", error);
+        if (!cancelled) setProviderNodes([]);
+      }
+    };
+    fetchProviderNodes();
+    return () => { cancelled = true; };
   }, [isOpen]);
 
-  const fetchCustomModels = async () => {
-    try {
-      const res = await fetch("/api/models/custom");
-      if (!res.ok)
-        throw new Error(`Failed to fetch custom models: ${res.status}`);
-      const data = await res.json();
-      setCustomModels(data.models || []);
-    } catch (error) {
-      console.error("Error fetching custom models:", error);
-      setCustomModels([]);
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) fetchCustomModels();
+    if (!isOpen) return;
+    let cancelled = false;
+    const fetchCustomModels = async () => {
+      try {
+        const res = await fetch("/api/models/custom");
+        if (!res.ok)
+          throw new Error(`Failed to fetch custom models: ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) setCustomModels(data.models || []);
+      } catch (error) {
+        console.error("Error fetching custom models:", error);
+        if (!cancelled) setCustomModels([]);
+      }
+    };
+    fetchCustomModels();
+    return () => { cancelled = true; };
   }, [isOpen]);
 
-  const fetchDisabledModels = async () => {
-    try {
-      const res = await fetch("/api/models/disabled");
-      if (!res.ok)
-        throw new Error(`Failed to fetch disabled models: ${res.status}`);
-      const data = await res.json();
-      setDisabledModels(data.disabled || {});
-    } catch (error) {
-      console.error("Error fetching disabled models:", error);
-      setDisabledModels({});
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) fetchDisabledModels();
+    if (!isOpen) return;
+    let cancelled = false;
+    const fetchDisabledModels = async () => {
+      try {
+        const res = await fetch("/api/models/disabled");
+        if (!res.ok)
+          throw new Error(`Failed to fetch disabled models: ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) setDisabledModels(data.disabled || {});
+      } catch (error) {
+        console.error("Error fetching disabled models:", error);
+        if (!cancelled) setDisabledModels({});
+      }
+    };
+    fetchDisabledModels();
+    return () => { cancelled = true; };
   }, [isOpen]);
 
   const allProviders = useMemo(
@@ -266,10 +272,23 @@ export default function ModelSelectModal({
         )
       : NO_AUTH_PROVIDER_IDS;
 
+    // Compatible nodes (OpenAI/Anthropic Compatible) that already have user-added
+    // custom models should be selectable even without an API-key connection. Local /
+    // self-hosted endpoints (Ollama, internal relays, etc.) don't always need a stored
+    // key, so gating on connections hides models the user already added. These nodes
+    // are LLM-only, so only surface them when no kind filter is active.
+    // See #4177, #2113, #2119, #1988.
+    const compatibleNodeIds = kindFilter
+      ? []
+      : customModels
+          .map((m) => m.providerAlias)
+          .filter((alias) => isOpenAICompatibleProvider(alias) || isAnthropicCompatibleProvider(alias));
+
     // Only show connected providers (including both standard and custom)
     const providerIdsToShow = new Set([
-      ...activeConnectionIds, // Only connected providers
-      ...noAuthIds, // No-auth providers (kind-filtered)
+      ...activeConnectionIds,  // Only connected providers
+      ...noAuthIds,            // No-auth providers (kind-filtered)
+      ...compatibleNodeIds,    // Compatible nodes with user-added models
     ]);
 
     // Sort by PROVIDER_ORDER

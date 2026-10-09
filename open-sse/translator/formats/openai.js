@@ -1,4 +1,5 @@
 // OpenAI helper functions for translator
+import { collapseTextParts } from "../concerns/message.js";
 import { ROLE, OPENAI_BLOCK, CLAUDE_BLOCK, VALID_OPENAI_CONTENT_TYPES, VALID_OPENAI_MESSAGE_TYPES } from "../schema/index.js";
 
 // Re-export valid-type lists (moved to schema/blocks.js) to keep existing importers working.
@@ -54,7 +55,7 @@ export function filterToOpenAIFormat(body, opts = {}) {
         filteredContent.push({ type: OPENAI_BLOCK.TEXT, text: "" });
       }
       
-      return { ...msg, content: filteredContent };
+      return { ...msg, content: collapseTextParts(filteredContent) };
     }
     
     return msg;

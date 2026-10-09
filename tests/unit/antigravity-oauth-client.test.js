@@ -38,7 +38,10 @@ describe("antigravity oauth client (deduped)", () => {
     const { dirname, join } = await import("node:path");
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "../../src/lib/oauth/constants/oauth.js"), "utf8");
-    expect(src).toContain('import { ANTIGRAVITY_OAUTH_CLIENT, GOOGLE_OAUTH_CLIENT } from "open-sse/providers/shared.js"');
+    expect(src).toMatch(/import\s*\{\s*ANTIGRAVITY_OAUTH_CLIENT\s*,\s*GOOGLE_OAUTH_CLIENT\s*,?\s*\}\s*from\s*"open-sse\/providers\/shared\.js"/);
+    const { ANTIGRAVITY_CONFIG, GEMINI_CONFIG } = await import("../../src/lib/oauth/constants/oauth.js");
+    expect(ANTIGRAVITY_CONFIG).toMatchObject({ ...EXPECTED, authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth", tokenUrl: "https://oauth2.googleapis.com/token" });
+    expect(GEMINI_CONFIG).toMatchObject({ ...GOOGLE, tokenUrl: "https://oauth2.googleapis.com/token" });
     expect(src).toContain("...ANTIGRAVITY_OAUTH_CLIENT");
     expect(src).toContain("...GOOGLE_OAUTH_CLIENT");
     // authorizeUrl now lives in registry; oauth.js derives via PROVIDER_OAUTH spread

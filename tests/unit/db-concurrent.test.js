@@ -27,14 +27,20 @@ describe("DB Concurrency — atomic safety", () => {
   it("100 parallel saveRequestUsage → no count loss", async () => {
     const N = 100;
     const promises = [];
-    for (let i = 0; i < N; i++) {
-      promises.push(db.saveRequestUsage({
-        provider: "openai", model: "gpt-4", connectionId: "c1",
-        tokens: { prompt_tokens: 10, completion_tokens: 5 },
-        endpoint: "/v1/chat", status: "ok",
-      }));
+    const timestamp = new Date().toISOString();
+    const clock = vi.spyOn(Date.prototype, "toISOString").mockReturnValue(timestamp);
+    try {
+      for (let i = 0; i < N; i++) {
+        promises.push(db.saveRequestUsage({
+          provider: "openai", model: "gpt-4", connectionId: "c1",
+          tokens: { prompt_tokens: 10, completion_tokens: 5 },
+          endpoint: "/v1/chat", status: "ok",
+        }));
+      }
+      await Promise.all(promises);
+    } finally {
+      clock.mockRestore();
     }
-    await Promise.all(promises);
 
     const stats = await db.getUsageStats("24h");
     expect(stats.totalRequests).toBe(N);
@@ -43,6 +49,16 @@ describe("DB Concurrency — atomic safety", () => {
 
     const hist = await db.getUsageHistory({ provider: "openai" });
     expect(hist.length).toBe(N);
+  });
+
+  it("deduplicates repeated writes with the same explicit request timestamp", async () => {
+    const entry = {
+      timestamp: new Date().toISOString(),
+      provider: "dedupe-test", model: "same-request", connectionId: "dedupe",
+      tokens: { prompt_tokens: 10, completion_tokens: 5 }, status: "ok",
+    };
+    await Promise.all(Array.from({ length: 20 }, () => db.saveRequestUsage({ ...entry })));
+    expect(await db.getUsageHistory({ provider: "dedupe-test" })).toHaveLength(1);
   });
 
   it("200 parallel saveRequestDetail → all flushed", async () => {

@@ -521,10 +521,8 @@ describe("ID uniqueness for tool calls", () => {
 		const ids = result.output.map((o) => o.call_id);
 		// All IDs must be unique
 		expect(new Set(ids).size).toBe(ids.length);
-		// IDs should have index discriminator
-		expect(ids[0]).toContain("_0");
-		expect(ids[1]).toContain("_1");
-		expect(ids[2]).toContain("_2");
+		// Encoding is not a wire contract; IDs must also be nonempty.
+		for (const id of ids) expect(id).toMatch(/^call_.+/);
 	});
 });
 

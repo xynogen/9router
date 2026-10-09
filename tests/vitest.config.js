@@ -6,13 +6,21 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   test: {
+    root: __dirname,
     environment: "node",
     globals: true,
     include: ["**/*.test.js"],
     // Don't scan into git worktrees nested under .claude/ — they carry their
     // own copies of the test files but lack an installed node_modules (open-sse,
     // etc.), which makes provider imports fail during collection.
-    exclude: ["**/node_modules/**", "**/.claude/**", "**/dist/**"],
+    // ponytail: these node:test suites run via package.json's test:node, not Vitest.
+    exclude: [
+      "**/node_modules/**", "**/.claude/**", "**/dist/**",
+      "unit/cline-auth.test.js",
+      "unit/kimchi.test.js",
+      "unit/kimchi-strip-reasoning.test.js",
+      "auth/saml.test.js",
+    ],
     // Allow many it.concurrent cases (real provider smoke runs ~50 providers in parallel)
     maxConcurrency: 60,
     // Suppress noisy console output from handlers under test

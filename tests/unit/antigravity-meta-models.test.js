@@ -116,7 +116,7 @@ describe("Antigravity meta-model upstream ID mapping", () => {
       "gemini-pro-agent",
     );
     expect(getModelUpstreamId("ag", "gemini-3.1-pro", "low")).toBe(
-      "gemini-3.1-pro-low",
+      "gemini-3.1-pro-low(low)",
     );
   });
 

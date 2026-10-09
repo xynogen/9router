@@ -1,4 +1,3 @@
-import { PROVIDERS } from "./providers.js";
 import REGISTRY from "../providers/registry/index.js";
 // PROVIDER_MODELS now built from providers/registry (transport + models co-located)
 import { PROVIDER_MODELS } from "../providers/index.js";
@@ -269,9 +268,13 @@ export const OAUTH_ALIASES = Object.fromEntries(
   ]),
 );
 
-// Derived from PROVIDERS — no need to maintain manually
+// Derived from REGISTRY — no need to maintain manually. REGISTRY (not PROVIDERS):
+// media-only entries (elevenlabs, cartesia, inworld, ...) declare no transport, so
+// keying off PROVIDERS dropped their alias and made their registry `models`
+// unreachable — the exact same map PROVIDER_MODELS is keyed by
+// (`entry.alias || entry.id` in providers/index.js).
 export const PROVIDER_ID_TO_ALIAS = Object.fromEntries(
-  Object.keys(PROVIDERS).map((id) => [id, OAUTH_ALIASES[id] || id]),
+  REGISTRY.map(r => [r.id, r.alias || r.id])
 );
 
 // Sync meta-models into PROVIDER_MODELS and hide internal tier target models

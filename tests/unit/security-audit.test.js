@@ -1,63 +1,65 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import fs from "fs";
-import path from "path";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+import fs from "node:fs";
+
+const { adapter } = vi.hoisted(() => ({ adapter: { all: vi.fn() } }));
+vi.mock("../../src/lib/db/driver.js", () => ({ getAdapter: async () => adapter }));
+vi.mock("../../src/lib/db/repos/connectionsRepo.js", () => ({ getProviderConnections: async () => [] }));
+vi.mock("../../src/lib/db/repos/apiKeysRepo.js", () => ({ getApiKeys: async () => [] }));
+vi.mock("../../src/lib/db/repos/nodesRepo.js", () => ({ getProviderNodes: async () => [] }));
+import { getUsageHistory, getUsageStats } from "../../src/lib/db/repos/usageRepo.js";
 
 // ============================================================
 // AUDIT-002 (#1962): API key masking in usage stats
 // ============================================================
 describe("AUDIT-002: API key masking", () => {
-  it("source should contain maskApiKey function", () => {
-    const source = fs.readFileSync(
-      path.resolve("src/lib/db/repos/usageRepo.js"),
-      "utf-8"
-    );
-    expect(source).toContain("function maskApiKey");
+  const apiKeys = ["sk-machine-aaaaaa-11111111", "sk-machine-bbbbbb-22222222"];
+  const maskedKeys = ["sk-machi***1111", "sk-machi***2222"];
+  const rows = apiKeys.map((apiKey) => ({
+    apiKey, model: "gpt-4", provider: "openai", timestamp: new Date().toISOString(),
+    tokens: JSON.stringify({ prompt_tokens: 10, completion_tokens: 5 }),
+  }));
+
+  beforeEach(() => {
+    adapter.all.mockImplementation((sql) => {
+      if (sql.includes("FROM usageDaily")) {
+        return [{ dateKey: rows[0].timestamp.slice(0, 10), data: JSON.stringify({
+          byApiKey: Object.fromEntries(rows.map((r) => [
+            `${r.apiKey}|${r.model}|${r.provider}`,
+            { apiKey: r.apiKey, rawModel: r.model, provider: r.provider, requests: 1 },
+          ])),
+        }) }];
+      }
+      return rows;
+    });
   });
 
-  it("getUsageHistory should use apiKeyMasked instead of apiKey", () => {
-    const source = fs.readFileSync(
-      path.resolve("src/lib/db/repos/usageRepo.js"),
-      "utf-8"
-    );
-    // The REST response should use apiKeyMasked
-    expect(source).toContain("apiKeyMasked: maskApiKey(r.apiKey)");
-    // The return mapping in getUsageHistory should not have raw apiKey
-    // (The internal ring buffer still uses apiKey: r.apiKey for internal state - that's fine)
-    const historyReturn = source.match(/return rows\.map\(\(r\)\s*=>\s*\(\{[\s\S]*?\}\)\);/);
-    expect(historyReturn).not.toBeNull();
-    expect(historyReturn[0]).toContain("apiKeyMasked");
-    expect(historyReturn[0]).not.toContain("apiKey: r.apiKey");
+  it("history returns masked keys without raw API keys", async () => {
+    const history = await getUsageHistory();
+    expect(history.map((r) => r.apiKeyMasked)).toEqual(maskedKeys);
+    for (const apiKey of apiKeys) expect(JSON.stringify(history)).not.toContain(apiKey);
   });
 
-  it("getUsageStats should use apiKeyMasked in byApiKey entries", () => {
-    const source = fs.readFileSync(
-      path.resolve("src/lib/db/repos/usageRepo.js"),
-      "utf-8"
-    );
-    // Both code paths (daily summary + 24h live) should use apiKeyMasked
-    const maskedCount = (source.match(/apiKeyMasked/g) || []).length;
-    expect(maskedCount).toBeGreaterThanOrEqual(4); // function def + 3 usage sites
-
-    // The byApiKey stats entries should use apiKeyMasked, not raw apiKey
-    // Check the daily summary path
-    const dailyPath = source.match(/stats\.byApiKey\[akKey\] = \{[^}]*apiKeyMasked[^}]*\}/);
-    expect(dailyPath).not.toBeNull();
-    // Check the 24h live path
-    const livePath = source.match(/stats\.byApiKey\[akKey\] = \{[^}]*apiKeyMasked[^}]*\}/g);
-    expect(livePath).not.toBeNull();
-    expect(livePath.length).toBeGreaterThanOrEqual(1);
+  it("history masks short keys and handles absent keys", async () => {
+    adapter.all.mockReturnValue([{ apiKey: "short-key" }, { apiKey: null }]);
+    expect((await getUsageHistory()).map((r) => r.apiKeyMasked)).toEqual(["s***", null]);
   });
 
-  it("byApiKey object keys should use masked key, not raw key", () => {
-    const source = fs.readFileSync(
-      path.resolve("src/lib/db/repos/usageRepo.js"),
-      "utf-8"
-    );
-    // The 24h path should use apiKeyMasked in the akKey template
-    expect(source).toContain("${apiKeyMasked}|${r.model}|${r.provider");
-    // Should NOT use raw r.apiKey in the key
-    expect(source).not.toContain("${r.apiKey}|${r.model}|${r.provider");
-  });
+  for (const period of ["24h", "all"]) {
+    it(`${period} stats retain separate buckets with masked display fields`, async () => {
+      const entries = Object.values((await getUsageStats(period)).byApiKey);
+      expect(entries).toHaveLength(2);
+      expect(entries.map((e) => e.apiKeyMasked)).toEqual(maskedKeys);
+      expect(entries.map((e) => e.apiKeyKey)).toEqual(maskedKeys);
+      for (const entry of entries) expect(entry).not.toHaveProperty("apiKey");
+    });
+
+    it(`${period} serialized stats must not leak raw keys through object keys`, async () => {
+      // getUsageStats is serialized directly by the usage routes and SSE stream.
+      const stats = await getUsageStats(period);
+      for (const apiKey of apiKeys) expect(JSON.stringify(stats)).not.toContain(apiKey);
+    });
+  }
 });
 
 // ============================================================
@@ -65,18 +67,20 @@ describe("AUDIT-002: API key masking", () => {
 // ============================================================
 describe("AUDIT-003: Proxy URL validation", () => {
   beforeEach(() => {
-    delete process.env.HTTP_PROXY;
-    delete process.env.HTTPS_PROXY;
-    delete process.env.ALL_PROXY;
-    delete process.env.NINE_ROUTER_PROXY_MANAGED;
-    delete process.env.NINE_ROUTER_PROXY_URL;
-    delete process.env.NINE_ROUTER_NO_PROXY;
-    delete process.env.NO_PROXY;
+    vi.stubEnv("HTTP_PROXY", undefined);
+    vi.stubEnv("HTTPS_PROXY", undefined);
+    vi.stubEnv("ALL_PROXY", undefined);
+    vi.stubEnv("NINE_ROUTER_PROXY_MANAGED", undefined);
+    vi.stubEnv("NINE_ROUTER_PROXY_URL", undefined);
+    vi.stubEnv("NINE_ROUTER_NO_PROXY", undefined);
+    vi.stubEnv("NO_PROXY", undefined);
   });
+
+  afterEach(() => vi.unstubAllEnvs());
 
   it("source should contain validateProxyUrl function", () => {
     const source = fs.readFileSync(
-      path.resolve("src/lib/network/outboundProxy.js"),
+      new URL("../../" + "src/lib/network/outboundProxy.js", import.meta.url),
       "utf-8"
     );
     expect(source).toContain("function validateProxyUrl");
@@ -173,7 +177,7 @@ describe("AUDIT-003: Proxy URL validation", () => {
 describe("AUDIT-018: XSS escaping in OAuth callback", () => {
   it("source should contain escapeHtml function", () => {
     const source = fs.readFileSync(
-      path.resolve("src/lib/oauth/utils/server.js"),
+      new URL("../../" + "src/lib/oauth/utils/server.js", import.meta.url),
       "utf-8"
     );
     expect(source).toContain("function escapeHtml");
@@ -181,7 +185,7 @@ describe("AUDIT-018: XSS escaping in OAuth callback", () => {
 
   it("should escape ampersand, angle brackets, and quotes", () => {
     const source = fs.readFileSync(
-      path.resolve("src/lib/oauth/utils/server.js"),
+      new URL("../../" + "src/lib/oauth/utils/server.js", import.meta.url),
       "utf-8"
     );
     expect(source).toContain("&amp;");
@@ -193,7 +197,7 @@ describe("AUDIT-018: XSS escaping in OAuth callback", () => {
 
   it("should use safeMessage in rendered HTML, not raw message", () => {
     const source = fs.readFileSync(
-      path.resolve("src/lib/oauth/utils/server.js"),
+      new URL("../../" + "src/lib/oauth/utils/server.js", import.meta.url),
       "utf-8"
     );
     expect(source).toContain("safeMessage");
@@ -209,7 +213,7 @@ describe("AUDIT-018: XSS escaping in OAuth callback", () => {
 describe("AUDIT-004: Atomic lock file for MITM startup", () => {
   it("manager.js should define LOCK_FILE constant", () => {
     const source = fs.readFileSync(
-      path.resolve("src/mitm/manager.js"),
+      new URL("../../" + "src/mitm/manager.js", import.meta.url),
       "utf-8"
     );
     expect(source).toContain("LOCK_FILE");
@@ -218,7 +222,7 @@ describe("AUDIT-004: Atomic lock file for MITM startup", () => {
 
   it("should use O_EXCL flag (wx) for atomic creation", () => {
     const source = fs.readFileSync(
-      path.resolve("src/mitm/manager.js"),
+      new URL("../../" + "src/mitm/manager.js", import.meta.url),
       "utf-8"
     );
     expect(source).toContain('"wx"');
@@ -227,7 +231,7 @@ describe("AUDIT-004: Atomic lock file for MITM startup", () => {
 
   it("should clean up lock file on all exit paths", () => {
     const source = fs.readFileSync(
-      path.resolve("src/mitm/manager.js"),
+      new URL("../../" + "src/mitm/manager.js", import.meta.url),
       "utf-8"
     );
     const matches = source.match(/unlinkSync\(LOCK_FILE\)/g);
@@ -242,7 +246,7 @@ describe("AUDIT-004: Atomic lock file for MITM startup", () => {
 describe("AUDIT-001: Synchronous restart guard", () => {
   it("mitmIsRestarting should be set before first await expression", () => {
     const source = fs.readFileSync(
-      path.resolve("src/mitm/manager.js"),
+      new URL("../../" + "src/mitm/manager.js", import.meta.url),
       "utf-8"
     );
 
@@ -273,7 +277,7 @@ describe("AUDIT-001: Synchronous restart guard", () => {
 
   it("mitmIsRestarting should be reset on max-restarts early return", () => {
     const source = fs.readFileSync(
-      path.resolve("src/mitm/manager.js"),
+      new URL("../../" + "src/mitm/manager.js", import.meta.url),
       "utf-8"
     );
 

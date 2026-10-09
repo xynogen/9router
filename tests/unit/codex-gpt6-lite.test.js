@@ -20,7 +20,7 @@ describe("Codex GPT-6 Sol/Luna transport", () => {
       reasoning: true,
       search: true,
       thinkingFormat: "openai",
-      contextWindow: 272000,
+      contextWindow: model === "gpt-6.1-sol" ? 1050000 : 272000,
       maxOutput: 128000,
     });
     expect(getThinkingLevels("codex", model)).toEqual(["low", "medium", "high", "xhigh", "max"]);

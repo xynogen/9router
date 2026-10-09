@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import { createHash } from "node:crypto";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
@@ -243,6 +244,7 @@ export async function saveRequestUsage(entry) {
   try {
     const db = await getAdapter();
 
+    const hasRequestTimestamp = !!entry.timestamp;
     if (!entry.timestamp) entry.timestamp = new Date().toISOString();
     entry.cost = await calculateCost(entry.provider, entry.model, entry.tokens);
 
@@ -255,7 +257,8 @@ export async function saveRequestUsage(entry) {
     // All 3 writes (history insert, daily upsert, lifetime counter) in ONE transaction.
     // better-sqlite3 is sync → no JS yield mid-transaction → no race in same process.
     db.transaction(() => {
-      const existing = db.get(
+      // Generated millisecond timestamps can collide across distinct parallel requests.
+      const existing = hasRequestTimestamp && db.get(
         `SELECT id, endpoint FROM usageHistory
          WHERE timestamp = ?
            AND COALESCE(provider, '') = COALESCE(?, '')
@@ -665,6 +668,10 @@ export async function getUsageStats(period = "all") {
   }
 
   stats.totalRequests = Object.values(stats.byProvider).reduce((sum, p) => sum + (p.requests || 0), 0);
+  // Keep full-key attribution internally, but never serialize raw keys as property names.
+  stats.byApiKey = Object.fromEntries(Object.entries(stats.byApiKey).map(([key, value]) => [
+    key === "local-no-key" ? key : createHash("sha256").update(key).digest("hex"), value,
+  ]));
   return stats;
 }
 

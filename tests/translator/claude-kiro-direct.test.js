@@ -132,7 +132,7 @@ describe("Claude → Kiro (direct route)", () => {
       null,
       "kiro",
     );
-    expect(out.systemPrompt).toContain(
+    expect(JSON.stringify(out.conversationState)).toContain(
       "<thinking_mode>enabled</thinking_mode>",
     );
     expect(out).not.toHaveProperty("agentMode");
@@ -146,7 +146,7 @@ describe("Claude → Kiro (direct route)", () => {
 
     expect(out.additionalModelRequestFields).toBeUndefined();
     expect(out.thinking).toBeUndefined();
-    expect(out.systemPrompt).toContain(
+    expect(JSON.stringify(out.conversationState)).toContain(
       "<max_thinking_length>24576</max_thinking_length>",
     );
   });
@@ -162,7 +162,7 @@ describe("Claude → Kiro (direct route)", () => {
       "claude-sonnet-4.5",
     );
     expect(out.additionalModelRequestFields).toBeUndefined();
-    expect(out.systemPrompt).toContain("CHUNKED WRITE PROTOCOL");
+    expect(JSON.stringify(out.conversationState)).toContain("CHUNKED WRITE PROTOCOL");
   });
 
   it("maps output_config.effort high to Kiro CLI-style additionalModelRequestFields for effort models", () => {
@@ -180,7 +180,7 @@ describe("Claude → Kiro (direct route)", () => {
       output_config: { effort: "high" },
     });
     expect(out.thinking).toBeUndefined();
-    expect(out.systemPrompt).toContain(
+    expect(JSON.stringify(out.conversationState)).toContain(
       "<max_thinking_length>24576</max_thinking_length>",
     );
   });
@@ -198,8 +198,8 @@ describe("Claude → Kiro (direct route)", () => {
     expect(out.additionalModelRequestFields).toEqual({
       reasoning: { effort: "low" },
     });
-    expect(out.systemPrompt || "").not.toContain("<thinking_mode>");
-    expect(out.systemPrompt || "").not.toContain("<max_thinking_length>");
+    expect(JSON.stringify(out.conversationState)).not.toContain("<thinking_mode>");
+    expect(JSON.stringify(out.conversationState)).not.toContain("<max_thinking_length>");
   });
 
   it.each(["auto", "minimal", "ultra"])(
@@ -215,10 +215,10 @@ describe("Claude → Kiro (direct route)", () => {
       );
 
       expect(out.additionalModelRequestFields).toBeUndefined();
-      expect(out.systemPrompt).toContain(
+      expect(JSON.stringify(out.conversationState)).toContain(
         "<thinking_mode>enabled</thinking_mode>",
       );
-      expect(out.systemPrompt).toContain("<max_thinking_length>");
+      expect(JSON.stringify(out.conversationState)).toContain("<max_thinking_length>");
     },
   );
 
@@ -235,8 +235,8 @@ describe("Claude → Kiro (direct route)", () => {
       );
 
       expect(out.additionalModelRequestFields).toBeUndefined();
-      expect(out.systemPrompt || "").not.toContain("<thinking_mode>");
-      expect(out.systemPrompt || "").not.toContain("<max_thinking_length>");
+      expect(JSON.stringify(out.conversationState)).not.toContain("<thinking_mode>");
+      expect(JSON.stringify(out.conversationState)).not.toContain("<max_thinking_length>");
     },
   );
 
@@ -256,19 +256,19 @@ describe("Claude → Kiro (direct route)", () => {
     });
   });
 
-  it("sends Claude system as top-level systemPrompt and keeps a user-content fallback", () => {
+  it("embeds Claude system in user content without the rejected top-level systemPrompt", () => {
     const out = C2K({
       system: "system-only instruction",
       messages: [{ role: "user", content: "hello" }],
     });
 
-    expect(out.systemPrompt).toContain("system-only instruction");
+    expect(out).not.toHaveProperty("systemPrompt");
     expect(
       out.conversationState.currentMessage.userInputMessage.content,
     ).toContain("system-only instruction");
   });
 
-  it("keeps top-level systemPrompt stable across turns", () => {
+  it("keeps system instructions in content across turns", () => {
     const first = C2K({
       system: "stable instruction",
       messages: [{ role: "user", content: "first" }],
@@ -278,8 +278,10 @@ describe("Claude → Kiro (direct route)", () => {
       messages: [{ role: "user", content: "second" }],
     });
 
-    expect(first.systemPrompt).toBe(second.systemPrompt);
-    expect(first.systemPrompt).not.toContain("Current time");
+    for (const out of [first, second]) {
+      expect(out).not.toHaveProperty("systemPrompt");
+      expect(JSON.stringify(out.conversationState)).toContain("stable instruction");
+    }
     expect(
       first.conversationState.currentMessage.userInputMessage.content,
     ).toContain("Current time");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import { Card } from "@/shared/components";
 import { AI_PROVIDERS, getProviderAlias } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
@@ -17,6 +17,10 @@ const DEFAULT_TTS_RESPONSE_EXAMPLE = `// Audio will appear here after running.
   "format": "mp3",
   "audio": "//NExAANaAIIAUAAANNNNNNNN..." // base64 encoded MP3
 }`;
+
+const subscribeToOrigin = () => () => {};
+const getOrigin = () => window.location.origin;
+const getServerOrigin = () => "";
 
 export function TtsExampleCard({ providerId }) {
   const providerAlias = getProviderAlias(providerId);
@@ -44,7 +48,7 @@ export function TtsExampleCard({ providerId }) {
   const [style, setStyle]               = useState(""); // style/voice instructions (e.g. MiMo voicedesign)
   const [apiKey, setApiKey]             = useState("");
   const [useTunnel, setUseTunnel]       = useState(false);
-  const [localEndpoint, setLocalEndpoint]   = useState("");
+  const localEndpoint = useSyncExternalStore(subscribeToOrigin, getOrigin, getServerOrigin);
   const [tunnelEndpoint, setTunnelEndpoint] = useState("");
   const [responseFormat, setResponseFormat] = useState("mp3"); // mp3 | json
   const [audioUrl, setAudioUrl]         = useState("");
@@ -67,7 +71,6 @@ export function TtsExampleCard({ providerId }) {
   const [connectionCount, setConnectionCount] = useState(0);
 
   useEffect(() => {
-    setLocalEndpoint(window.location.origin);
     fetch("/api/keys")
       .then((r) => r.json())
       .then((d) => { setApiKey((d.keys || []).find((k) => k.isActive !== false)?.key || ""); })
@@ -81,6 +84,11 @@ export function TtsExampleCard({ providerId }) {
       .then((d) => { if (d.publicUrl) setTunnelEndpoint(d.publicUrl); })
       .catch(() => {});
 
+  }, [providerId]);
+
+  const [voiceProvider, setVoiceProvider] = useState(null);
+  if (voiceProvider !== providerId) {
+    setVoiceProvider(providerId);
     // Pre-select default voice based on provider config
     if (config.voiceSource === "hardcoded") {
       const defaultModel = config.hasModelSelector && config.modelKey
@@ -109,11 +117,13 @@ export function TtsExampleCard({ providerId }) {
     // api-language (edge-tts, local-device, elevenlabs): NO default load, wait for user to pick language
     // config (nvidia, hyperbolic, deepgram, huggingface, cartesia, playht, coqui, tortoise, inworld, qwen):
     // use ttsConfig.models for model selector; voice is empty by default (backend uses provider default)
-  }, [providerId]);
+  }
 
-  // Update voices when model changes (voicesPerModel providers)
-  useEffect(() => {
-    if (!config.voicesPerModel || !selectedModel) return;
+  // Reset the voice selection before rendering a different model's presets.
+  const [voiceModel, setVoiceModel] = useState(null);
+  if (voiceModel !== selectedModel) {
+    setVoiceModel(selectedModel);
+    if (config.voicesPerModel && selectedModel) {
     const voices = getTtsVoicesForModel(providerId, selectedModel) || [];
     setCountryVoices(voices);
     if (voices.length) {
@@ -124,7 +134,8 @@ export function TtsExampleCard({ providerId }) {
       setSelectedVoice("");
       setSelectedVoiceName("");
     }
-  }, [selectedModel]);
+    }
+  }
 
   // Open modal — load language list
   const openModal = async () => {
@@ -187,6 +198,11 @@ export function TtsExampleCard({ providerId }) {
   // For ElevenLabs/config-driven: prefer manual voiceId (if any), else fall back to selectedVoice
   const activeVoiceId = config.hasVoiceIdInput ? (voiceId || selectedVoice) : selectedVoice;
   const modelFull = (() => {
+    if (providerId === "selfhosted-tts") {
+      const model = selectedModel.trim();
+      const voice = activeVoiceId.trim();
+      return model ? `${providerAlias}/${model}${voice ? `/${voice}` : ""}` : "";
+    }
     if (config.hasModelSelector && selectedModel && activeVoiceId) return `${providerAlias}/${selectedModel}/${activeVoiceId}`;
     if (config.hasModelSelector && selectedModel) return `${providerAlias}/${selectedModel}`;
     if (activeVoiceId) return `${providerAlias}/${activeVoiceId}`;
@@ -282,7 +298,17 @@ export function TtsExampleCard({ providerId }) {
           </Row>
 
           {/* Model selector — prefer PROVIDER_MODELS[kind=tts], else providerModels via modelKey */}
-          {config.hasModelSelector && (config.modelKey || getModelsByProviderId(providerId).some(m => getModelKind(m) === "tts")) && (
+          {providerId === "selfhosted-tts" && (
+            <Row label="Model">
+              <input
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                placeholder="e.g. kokoro or Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16"
+                className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary font-mono"
+              />
+            </Row>
+          )}
+          {providerId !== "selfhosted-tts" && config.hasModelSelector && (config.modelKey || getModelsByProviderId(providerId).some(m => getModelKind(m) === "tts")) && (
             <Row label="Model">
               <select
                 value={selectedModel}
@@ -384,7 +410,7 @@ export function TtsExampleCard({ providerId }) {
                       setVoiceId(e.target.value);
                       setSelectedVoice(e.target.value);
                     }}
-                    placeholder="e.g. CwhRBWXzGAHq8TQ4Fs17"
+                    placeholder={providerId === "selfhosted-tts" ? "e.g. af_heart or vivian (optional)" : "e.g. CwhRBWXzGAHq8TQ4Fs17"}
                     className="w-full px-3 py-1.5 pr-7 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary font-mono"
                   />
                   {voiceId && (
