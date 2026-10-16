@@ -1,3 +1,31 @@
+# v0.5.104 (2026-10-15)
+
+## Features
+- **Gemini**: add Gemini 4 Argon (`gemini`/`vertex`, plus a `high` tier on Antigravity) — non-dismissible gemini-level thinking, 1M context, Vertex defaults to `global` location
+- **Usage**: Cursor IDE quota via DashboardService (spend + request buckets) (#4689)
+- **Cursor**: resolve Auto (Server Picks) to the account's default agent model (#4692)
+- **Quota**: anchored auto-ping schedule at fixed local times with timezone/DST support and schedule modal (#4848); unify mode selection into a 3-way toggle, default timezone to local, bring schedule config to the quota page
+- **Providers**: add Nous Research OAuth + free-tier provider
+- **UI**: model picker regex/negation search, Select/Deselect All, provider filtering, and per-provider wildcards
+
+## Fixes
+- **Nous**: add missing attribution tags to API-key requests through compatible Chat Completions connections, preserving caller tags and identities (#4745)
+- **Cursor**: recover long sessions from empty AgentService turns (#4690); hold strictProxy on the AgentService h2 path (#4696)
+- **OpenCode**: encode inverted timestamp in translated session IDs so non-OpenCode clients pass Zen free-tier checks (#4780); inject `reasoning_content` placeholder for Zen multi-turn chats (#4805); move free tier to `/inference/v1` with the v2 client fingerprint (#4842)
+- **OpenCode Zen**: use attested free-tier identity for `-free` models on keyed lane (#4784)
+- **OpenCode Go**: route `claude-haiku-5-5` to `/messages` with adaptive thinking (#4727); drop `response_format` for the deepseek family (relay rejects with a bare 400)
+- **Capabilities**: add missing OpenCode Free reasoning entries (space-bunny & co) so `reasoning_effort` stops being silently stripped; advertise PDF input for current Claude models (#4761)
+- **Combos**: fallback when a model returns HTTP 200 with zero usable content (#4750)
+- **Qoder**: surface add-on (free-credit promo) quota in the quota tracker (#4758)
+- **Translator**: return Claude messages for forced SSE JSON responses (#4789)
+- **Vertex**: honor API-key project/location for Gemini 4 Argon (#4821)
+- **GitHub**: route Copilot embeddings to `api.githubcopilot.com` (#4793)
+- **Codex**: drop retired gpt-5.5 from registry, image, and auto-ping; CLI preset default to `gpt-6.1-sol`
+- **Gemini**: drop sampling params and order functionResponse-last for Gemini 4 (#4802)
+- **Models**: expose no-auth free providers in `/v1/models`; prune custom models on node deletion
+- **Usage**: token fallback for `input_tokens` rows in 24h/today stats; stable key masking
+- **Dashboard**: unclip proxy dropdown and tooltips via body portal
+
 # v0.5.99 (2026-10-08)
 
 ## Features
@@ -5,6 +33,7 @@
 - **Antigravity**: add Claude Sonnet 5.5 and Opus 5.5 support with reasoning effort variants, pricing, and family quota routing
 - **Bedrock**: add Amazon Bedrock (`bedrock` and `bedrock-xai`) provider with static keys, AWS SSO profiles, native SigV4 signer, and shared EventStream decoder (#4157)
 - **Hermes**: per-profile configuration across API, Dashboard card, and CLI menu with bulk apply, scoped reset, and auxiliary roles (#4660)
+- **Hermes**: audio transcription via 9router — an "Audio STT" toggle in the card points the profile's `stt.openai.base_url` at `/v1/audio/transcriptions` with an STT-kind model picker (#4763)
 - **API Keys**: per-API-key access control — restrict keys to allowed combos and models via interactive modal
 - **ElevenLabs**: add Scribe speech-to-text support (#4537)
 - **Proxy Pools**: add Netlify serverless relay proxy pool with digest-deploy API and dashboard management modal
@@ -14,6 +43,7 @@
 - **Dashboard**: open 9Remote sidebar item directly to website
 
 ## Fixes
+- Avoid Headroom compression warnings caused by large unchanged tool schemas (#4809).
 - **Dashboard**: fix mobile layouts for API Keys card (alignment, code wrap), header breadcrumbs (overflow collision), model chips (full width, break-all), and Claude CLI settings
 - **Gemini**: do not treat properties map as schema node when tool parameter is named `properties` (#4620); rename `$ref` keys in `functionResponse` payloads
 - **Translator**: uniquify duplicate `tool_call_ids` for Gemini (#4532)
@@ -127,7 +157,6 @@
 # v0.5.81 (2026-09-18)
 
 ## Features
-
 - **Xiaomi MiMo**: merge MiMo Desktop support into `xiaomi-mimo` with dual auth (API key + Desktop/OAuth session), Preview models support, and encrypted-callback OAuth flow
 - **Claude Code**: add 1M-context toggle (`[1m]` marker) and drive `CLAUDE_CODE_AUTO_COMPACT_WINDOW` directly from the dashboard
 - **Models**: add DeepSeek-V4.1-Flash to DeepSeek provider, CodeBuddy-Intl, and Ollama (`deepseek-v4.1-flash:cloud`); enable `low`..`max` reasoning effort levels and vision capability for DeepSeek-V4.*
@@ -150,7 +179,6 @@
 # v0.5.75 (2026-09-10)
 
 ## Features
-
 - **Video**: add OpenRouter and Vertex AI (Veo) video generation on `/v1/videos/*` via a provider adapter layer; poll requests resolve their provider from `x-connection-id` or `?provider=`
 - **Antigravity**: add weekly quota tracking (Gemini weekly / Claude & GPT weekly) and free-tier handling from `retrieveUserQuotaSummary` (#3892)
 - **Codex**: add GPT Image 2.5, Flare and Sunburst image models with multi-image support; add the same ids to the OpenAI catalog
@@ -160,7 +188,6 @@
 - **CodeBuddy-CN**: replace `deepseek-v4-flash` with `deepseek-v4.1-flash`
 
 ## Fixes
-
 - **Tools**: scope Claude tool type defaulting to gateways declaring `requireClaudeToolType` — the global default broke Anthropic-compatible endpoints that only accept the legacy typeless tool shape (#3905)
 - **Claude**: cap re-anchored `cache_control` at the 4-marker budget so a spent budget no longer 400s and triggers a full combo failover; wrap bare single-object content turns before the mid-conversation-system fold
 - **Cline / Airforce**: unwrap the `{"success":true,"data":…}` envelope on non-stream chat completions (#3644); add the live Cline/ClinePass model catalog and refresh Airforce free models
@@ -178,7 +205,6 @@
 # v0.5.69 (2026-09-05)
 
 ## Features
-
 - **Codex**: add GPT 6.0 Astra (`gpt-6-astra`) with vision, thinking and search capabilities
 - **Usage**: add Claude Fable quota tracker support with weekly window normalization (`weekly fable (7d)`)
 - **Dashboard**: group Antigravity Gemini and Claude quotas in Quota Tracker, prune stale hidden keys
@@ -188,7 +214,6 @@
 - **Gemini**: persist and replay `thoughtSignature` scoped by session namespace
 
 ## Fixes
-
 - **Claude**: normalize adaptive auto effort (`output_config.effort`) (#3792)
 - **Antigravity**: prevent Google anti-abuse rate limits during multi-account refresh (#3813)
 - **Anthropic-compatible**: forward Claude beta flags to nodes fronting Anthropic (#3797)
@@ -202,7 +227,6 @@
 # v0.5.65 (2026-09-03)
 
 ## Features
-
 - **Fetch**: add Ollama Cloud web fetch provider
 - **Gemini / Antigravity**: add Gemini 3.8 Flash support and bump IDE fingerprint to 2.11.0
 - **Claude**: add Claude Fable 5.1 support (adaptive thinking with `output_config.effort`), bump Claude Code fingerprint to 2.1.258 for new-model access
@@ -214,7 +238,6 @@
 - **i18n**: complete Indonesian translation (1391 keys)
 
 ## Fixes
-
 - **Security**: close SSRF guard bypasses in `ssrfGuard.js` (alternate IPv6 encodings, hostname trailing dots, wildcard DNS resolution check, safe redirect handling) (#3714)
 - **Model markers**: strip the `[1m]` context marker Claude Code appends to model names (`claude-opus-5[1m]`) preventing model resolution failures (#3690)
 - **Claude**: drop `server_tool_use` blocks carrying foreign IDs to avoid Anthropic 400 rejections; never anchor cache breakpoints on `defer_loading` tools (#3567)
@@ -231,7 +254,6 @@
 # v0.5.59 (2026-08-29)
 
 ## Features
-
 - **Search**: new web search providers — Antigravity (Google Search grounding
   on the existing OAuth account pool, citations keyed and merged by URL) and
   Xquik (X search with `x-api-key` auth, cursor pagination, credit-based
@@ -271,11 +293,9 @@
 - **i18n**: pt-BR expanded to 1132 terms
 
 ## Fixes
-
 - **Claude Code**: add Claude Fable 5.1 and advertise Claude Code 2.1.258 in
   both the request header and billing identity; use its permanent adaptive-thinking
   mode with `output_config.effort`
-
 - **Stream**: record usage when a client closes on the terminal event — the
   Responses API has no [DONE] sentinel, so codex closed the socket on
   `response.completed` and cancelled the reader before flush() ran its usage
@@ -350,7 +370,6 @@
 # v0.5.55 (2026-08-14)
 
 ## Features
-
 - **Auth**: native SAML 2.0 SSO alongside OIDC — AuthnRequest generation, ACS
   assertion handling, SP metadata export, admin config test, replay-protected
   via a `saml_state` cookie matched against `InResponseTo`
@@ -373,7 +392,6 @@
   tabs tripping 429; manual refresh (↻) sends `force=1` to bypass the cache
 
 ## Fixes
-
 - **Docker**: ship `sql.js` in the image so the pure-JS DB fallback can start —
   file tracing carried the package's JS without `dist/sql-wasm.wasm`, so a
   container with no native driver aborted with ENOENT and never got a database
@@ -416,11 +434,9 @@
 - **Providers**: add llm7 to provider test support
 
 ## Docs
-
 - **i18n**: add Spanish, French, and Brazilian Portuguese README translations
 
 ## Security
-
 - **Real IP**: `x-9r-real-ip` and the Host fallback were trusted from
   client-controlled headers whenever `custom-server.js` was not in the request
   path (`npm run start`, `start:bun`), letting a remote caller pose as local to
@@ -440,7 +456,6 @@
 # v0.5.50 (2026-08-05)
 
 ## Features
-
 - **Providers**: add TokenRouter (300+ models via OpenAI-compatible gateway) with
   exact per-model pricing for 110 models and `reasoning_effort` thinking config
 - **Providers**: add Self-hosted STT / TTS / Embedding — point 9Router at your own
@@ -462,7 +477,6 @@
   token refresh scheduler for all providers
 
 ## Fixes
-
 - **Providers**: remove Qwen (OAuth flow stopped working reliably)
 - **Passthrough**: detect codex-tui/Codex Desktop as native Codex client — they
   were falling through to the translator and losing fields like `reasoning.summary`
@@ -516,13 +530,11 @@
   hung indefinitely
 
 ## Docs
-
 - **i18n**: fix port typo, add RTK Token Saver feature descriptions
 
 # v0.5.45 (2026-07-30)
 
 ## Features
-
 - **TTS**: add Xiaomi MiMo text-to-speech (preset voices 冰糖/茉莉/苏打/白桦/Mia/Chloe/Milo/Dean, style control, language hint dropdown with Auto-detect, i18n for Style label/placeholder)
 - **Providers**: add Poolside (OpenAI-compatible)
 - **Providers**: add api-airforce, baidu, bazaarlink, bluesminds, kilo-gateway, llm7, morph, sambanova, tencent
@@ -536,7 +548,6 @@
 - **Usage**: SuperGrok weekly pool via gRPC-web
 
 ## Fixes
-
 - **Refresh**: rotate `refresh_token` between retry attempts
 - **Kiro**: canonicalize tool history and route API keys correctly
 - **Kiro**: normalize dashboard thinking intensity models
@@ -551,21 +562,18 @@
 - **Dashboard**: flex quota rows, thin global scrollbars, no hidden-row overflow
 
 ## Docs
-
 - **i18n**: expand pt-BR translation to 986 terms
 - README: Indonesian translation
 
 # v0.5.40 (2026-07-20)
 
 ## Features
-
 - **i18n**: add Khmer (km) translations
 - **CLI tools**: configure Grok Build subagent models
 - **Kimi**: merge OAuth into dual-auth provider, add K3 / K2.7 models
 - **Dashboard**: ProviderTopology flow animation
 
 ## Fixes
-
 - **DB**: resolve better-sqlite3 parameter binding crash
 - **Translator**: pass `service_tier` through OpenAI → Responses conversion
 - **Kiro**: map GPT-5.6 reasoning effort fields
@@ -576,10 +584,10 @@
 - **Cursor**: HTTP/2 AgentService support + version bump 3.12.17
 - **Dashboard**: cut duplicate API/icon spam, lazy-load provider assets
 
+
 # v0.5.35 (2026-07-16)
 
 ## Features
-
 - **xAI**: Grok Imagine video generation (`/v1/videos`) + CLI
 - **CLI tools**: Grok Build setup — choose separate main/general-purpose/explore/plan models and preserve each model's context window
 - **GitHub Copilot**: route Claude models through Copilot's native `/v1/messages`
@@ -590,7 +598,6 @@
 - **i18n**: Thai (th) + Persian (fa) translations / README
 
 ## Fixes
-
 - **Providers**: bulk-add API keys no longer overwrite existing keys (gap-fill `Key N`)
 - **Anthropic**: lowercase `anthropic-version` header to prevent duplication on `/v1/messages`
 - **Alicode-intl**: use DashScope compatible-mode endpoint so standard keys work
@@ -603,17 +610,14 @@
 - **Translator**: strip `client_metadata` when converting openai-responses → openai
 
 ## Improvements
-
 - **Perf**: skip inactive background services on startup
 
 ## Docs
-
 - README: Persian YouTube tutorial
 
 # v0.5.30 (2026-07-10)
 
 ## Features
-
 - **Perplexity**: add Agent API provider (#2492)
 - **Grok CLI**: add Grok CLI / Grok Build provider with OAuth device-code flow (#2502)
 - **Featherless**: add OpenAI-compatible provider presets
@@ -625,7 +629,6 @@
 - **Proxy-Pools**: auto-rotate strategy for no-auth providers (#2409)
 
 ## Fixes
-
 - **Cloudflare-AI**: support accountId in bulk key import (#2449)
 - **DB**: backup on schema change, MCP child cleanup, codex models, usage providers OOM
 - **Codex**: avoid bare-email OAuth dedup (#2477)
@@ -642,7 +645,6 @@
 - **Pricing**: update Claude/Codex model rates and add new models
 
 ## Improvements
-
 - **i18n(zh-CN)**: complete Chinese translations for all UI strings (#2436)
 - **API**: caching for tunnel and version status endpoints
 - **Perf**: faster dev startup and lighter bundle
@@ -650,14 +652,12 @@
 # v0.5.20 (2026-07-07)
 
 ## Features
-
 - **Thinking**: per-model thinking level picker on provider page — appends `(level)` suffix to copied model names for forced reasoning effort across all formats (openai, claude, gemini, deepseek, kimi, qwen, zai, minimax, hunyuan, step)
 - **RTK**: add JS-native git-log filter (#2423)
 - **Caveman**: add targeted upstream-aligned style rules (#2424)
 - **i18n**: add Farsi (fa) language support (#2385)
 
 ## Fixes
-
 - **Thinking**: strip `(level)` suffix from upstream `body.model` so providers no longer reject requests
 - **Translator**: preserve developer instructions in openai-responses conversion (#2434)
 - **count_tokens**: count structured Anthropic blocks (#2419)
@@ -671,14 +671,12 @@
 # v0.5.18 (2026-07-03)
 
 ## Features
-
 - **Usage**: track cached tokens + correct input/output/cache cost (#2209) — hodtien
 - **Codex**: show reset credit expiry details (#2290) — Rafli Ahmad Zulfikar
 - **NVIDIA**: add new models and capabilities — decolua
 - **ClinePass**: add provider support — sternelee
 
 ## Fixes
-
 - **Usage**: dedupe streaming request-details log entries — Qin Li
 - **Claude**: drop foreign thinking signatures in passthrough — decolua
 - Prevent non-SSE stream pipe crash and cross-IdP account overwrites (#2244) — KunN-21
@@ -695,13 +693,11 @@
 # v0.5.15 (2026-06-29)
 
 ## Features
-
 - Add Kimchi OAuth provider — Nant361
 - Refine Qwen vision/video + thinking model patterns — decolua
 - Opt-in Codex auto-ping quota keep-alive — Emirhan
 
 ## Fixes
-
 - **Responses**: handle response.done terminal events (#2142) — rifuki
 - **Headroom**: skip unsafe responses tool history (#2132) — Sutarto Jordan Chrisfivo
 - **Translator**: map mid-conversation system message to user (claude→openai) — decolua
@@ -718,7 +714,6 @@
 # v0.5.12 (2026-06-26)
 
 ## Features
-
 - Add token-saver dashboard page — decolua
 - Add bulk delete for provider connections — teddytkz
 - Resolve GitHub Copilot model catalog from upstream — caiqinzhou
@@ -727,7 +722,6 @@
 - Overhaul Blackbox provider catalog + WebUI test support — suryacagur
 
 ## Fixes
-
 - Provider thinking compatibility (DeepSeek/Gemini) — Mink Nguyen
 - Stop double-counting streaming usage at source — decolua
 - Usage logging dedupe to reduce stats churn — Mink Nguyen
@@ -756,13 +750,11 @@
 # v0.5.8 (2026-06-21)
 
 ## Features
-
 - **Antigravity**: native image generation support (image models tagged kind:image, hiển thị trong media-providers UI)
 - **CodeBuddy CN**: API key auth + credit quota tracker
 - **CodeBuddy CN**: short model prefix alias "cbcn"
 
 ## Fixes
-
 - **MiniMax-M3**: enable vision capability
 - **Headroom**: support Docker sidecar proxy
 - **Antigravity**: image executor fixes
@@ -776,14 +768,12 @@
 # v0.5.6 (2026-06-20)
 
 ## Features
-
 - **Ponytail**: minimalist code generation feature
 - **Headroom**: proxy lifecycle management + dashboard UI (one-click start/stop, install detection, status probing, token saver, claude↔openai shape conversion)
 - **CodeBuddy CN**: new OAuth provider (copilot.tencent.com) — 15-model catalog, /v2 inference, forced streaming, OpenAI-style reasoning
 - **OpenCode-Go**: align models with official endpoints; route Qwen 3.7 MiniMax via /v1/messages, GLM/Kimi/DeepSeek/MiMo via /chat/completions
 
 ## Fixes
-
 - **Anthropic-compatible validation**: use POST /v1/messages (GET /models not spec, false "invalid" for valid keys)
 - **CLI tools**: tolerate JSONC configs in all 8 settings routes (opencode, openclaw, kilo, droid, cowork, copilot, claude, cline)
 - **Gemini/Antigravity**: preserve 'pattern' in tool schema translation (glob/grep)
@@ -794,7 +784,6 @@
 # v0.5.4 (2026-06-18)
 
 ## Fixes
-
 - **Kiro**: honor thinking effort budgets
 - **AG/Kiro/Xiaomi**: provider fixes
 - **Combo/Fusion**: flatten tool history in panel calls to prevent 503
@@ -804,7 +793,6 @@
 # v0.5.2 (2026-06-17)
 
 ## Features
-
 - **Combo Fusion strategy** — fans the prompt out to all member models in parallel, then a configurable judge model synthesizes one final answer (quorum-grace, anonymized sources, graceful degradation)
 - **Per-combo strategy selector** — pick `fallback` / `round-robin` / `fusion` / `capacity` per combo (replaces the old round-robin toggle), with a judge picker for fusion
 - **Capacity auto-switch** — reorders models per request so images/PDFs route to capable models first
@@ -812,7 +800,6 @@
 - **Claude auto-ping** — warms the 5h quota window right after reset so a fresh window starts immediately (per-connection toggle)
 
 ## Fixes
-
 - **Claude 429**: stop hammering the OAuth usage endpoint — cache resetAt, throttle quota refresh to 3 min, cool down after a 429 (chat unaffected)
 - **Usage logs always empty**: missing `await` on `getAdapter()` in `getRecentLogs` made `/api/usage/logs` & `/api/usage/request-logs` return nothing
 - **Executors**: strip params unsupported by the provider/model (drops deprecated `temperature` for claude-opus-4 → Anthropic 400)
@@ -824,13 +811,11 @@
 - **Security**: SSRF hardening on web fetch
 
 ## Internal
-
 - Large **open-sse / translator refactor** (~40 commits): unified provider/model registry (LiteLLM-style `models[]` + `kind` field, 100 co-located registry files), single-sourced media/OAuth/refresh/token URLs, registry-based dispatch for usage & token-refresh, DRY translator concerns (buildUsage, encodeDataUri, finishReasonMap, chunkBuilder, reasoningDelta…), ESM-safe registry init, large-file splits, dead-code removal, and golden/no-regression test gates
 
 # v0.4.80 (2026-06-13)
 
 ## Features
-
 - Vercel AI Gateway: support embeddings, images and credit usage (#1183)
 - Add MiMo Free no-auth provider (#1789)
 - Vertex: support ADC `authorized_user` credential
@@ -839,7 +824,6 @@
 - Kiro: enable multi-endpoint failover for GenerateAssistantResponse (#1722)
 
 ## Fixes
-
 - Security: re-auth on DB export/import + SSRF guard on web fetch
 - Auth: real client IP rate-limiting + remote default-password guard
 - Cerebras/Mistral: strip unsupported `client_metadata` from downstream requests (#1742)
@@ -858,181 +842,4 @@
 - Dashboard: show provider node name instead of connection name in topology (#1770) + show explicit `kind="llm"` combos on combos page (#1684)
 
 ## Docs
-
 - README: add Indonesian 9Router tutorial video (#1709)
-
-# v0.4.71 (2026-06-06)
-
-## Features
-
-- Caveman: add wenyan classical Chinese levels and sync upstream prompts; locale-based visibility on endpoint page
-- i18n: endpoint exposure notice across multiple languages + Russian README
-- Antigravity: add gemini-3.5-flash-extra-low (Low) model
-- xiaomi-tokenplan: add Claude-native MiMo V2.5 Pro alias via dedicated executor
-- Qoder: fetch latest model + dashboard import-model button (#1642)
-- MiniMax: add MiniMax-M3 + update Quota Tracker coding/CN (#1631)
-
-## Fixes
-
-- Codex: harden streaming timeouts (stall/connect raised to 60s, configurable per-provider), accept `response.done` event, and always emit a terminal `response.failed` + `[DONE]` for Responses passthrough when a stream closes, stalls, or aborts before a terminal event — prevents codex clients from hanging (#1648, #1680, #1688, #1618)
-- Codex: durable OAuth refresh lifecycle (#1664)
-- Tunnel: skip virtual interfaces to prevent false netchange watchdog
-- Claude: fix forced tool_choice 400 on cc/ OAuth route (#1592)
-- Proxy: raise Next client body limit to 128MB via `NINEROUTER_PROXY_CLIENT_MAX_BODY_SIZE` (#1529, #1572)
-- MiniMax: echo `reasoning_content` on follow-up turns to avoid 400 (#1543)
-- Kiro: handle 400 on tool-bearing history without client tools; add mappable "auto" model slot; fix binary EventStream crash + add models & TTS tool filtering
-- Antigravity: passthrough tab-autocomplete + mark default agent slot mandatory
-- Qoder: allow `qmodel_latest` model key (#1638)
-- Providers: restore one-connection guard for compatible/embedding nodes
-- Model-test: route image/STT probes to their real endpoints, harden STT ping; add opencode-go + xiaomi-tokenplan to connection test (#1576, #1628)
-
-## Improvements
-
-- Dashboard: reorganize menu actions across sidebar/header/profile
-- Translator: add data-driven coverage, bug-exposing cases, and real provider smoke tests
-
-# v0.4.66 (2026-05-29)
-
-## Features
-
-- Add Qoder provider: device-flow OAuth, COSY signing, WAF-bypass body encoding, live model catalog, dashboard quota tracker, 11 models (#1372)
-- Add new models: Claude Opus 4.8 (Claude Code), GPT 5.4 Mini (Codex)
-
-## Fixes
-
-- DeepSeek thinking mode: echo `reasoning_content` back on follow-up/tool-call turns so OpenCode-free and custom providers no longer 400 with "reasoning_content must be passed back" (#1543)
-- Reasoning injector: match deepseek/kimi model ids case-insensitively (covers custom providers using capitalized model names)
-- OpenCode suggested-models: include free models without the `-free` suffix, e.g. `big-pickle` (#1535)
-
-## Improvements
-
-- Codex: trim sunset models, keep gpt-5.5 / gpt-5.4 / gpt-5.3-codex family, add gpt-5.4-mini
-- volcengine-ark: refresh model list (add DeepSeek-V4-Flash/Pro, drop EOL entries)
-- Lower stream stall timeout 35s → 30s for faster hang detection
-
-# v0.4.63 (2026-05-26)
-
-## Fixes
-
-- GitHub Copilot: never route Gemini/Claude models to the `/responses` endpoint; prevents misleading "does not support Responses API" 400s (#1062)
-- proxyFetch: restore missing `Readable` import causing runtime `ReferenceError` in DNS-bypass fetch path
-
-## Improvements
-
-- Lower stream stall timeout from 60s → 35s for faster hang detection
-
-# v0.4.62 (2026-05-26)
-
-## Fixes
-
-- Codex: auto-retry when upstream drops mid-stream (no more hangs)
-- Codex: fix random 400/404 errors, tool-calling failures, and unstable prompt cache
-- MITM: support Antigravity 2.x
-- Sanitize Read tool args to prevent retry loops from non-Anthropic models (#1144)
-- Implement json_schema fallback for OpenAI-compatible providers without native Structured Output (#1343)
-- Strip empty Read pages argument in OpenAI-to-Claude translator (#1354)
-- Forward Gemini output dimensions for embeddings (#1366)
-- Resolve setState-in-effect errors in dashboard components (#1362)
-- Gemini CLI: reuse stored OAuth project IDs for quota checks and show clearer setup guidance when the project is missing (#1271, #1428)
-
-## Features
-
-- Add Cloudflare Workers proxy deployer and pool integration (#1360)
-- Add Deno Deploy relays support and improved proxy pools dashboard layout (#1437)
-
-## Improvements
-
-- Refactor Tunnel into dedicated Cloudflare and Tailscale manager modules
-- Refactor tokenRefresh service with in-flight dedup to prevent refresh_token_reused errors
-
-# v0.4.59 (2026-05-21)
-
-## Fixes
-
-- OAuth: fix login flow on Windows
-
-# v0.4.58 (2026-05-21)
-
-## Features
-
-- xAI Grok provider (OAuth, API key, image)
-- Provider limits: paginated accounts with page size controls
-
-## Fixes
-
-- Tailscale: fix connection status on Windows (#1300)
-- Tunnel: fix false "checking" when tunnel URL is reachable
-- Stream: fix pipe errors on client disconnect/abort
-
-# v0.4.55 (2026-05-18)
-
-## Features
-
-- Xiaomi MiMo Token Plan: region selector (Singapore / China / Europe) — keys are cluster-specific
-- Antigravity: risk confirmation dialog before first connection
-- Gemini CLI: surface upstream retry delay on 429 errors
-
-## Fixes
-
-- MITM: cannot kill process on macOS under sudo (lsof not found in PATH)
-- Stream: false-positive stall timeout on Claude reasoning / Kiro responses
-- Tunnel: cannot re-enable after disable (stuck state)
-- Tunnel: cloudflared error messages now include log tail for easier debugging
-- Language switcher: applies selected locale immediately on close (#1234)
-- Antigravity OAuth: metadata now matches the official client
-
-## Improvements
-
-- Gemini CLI: bump engine to 0.34.0
-- Re-hide `qwen` (OAuth EOL) and `iflow` (not ready) providers
-
-# v0.4.52 (2026-05-17)
-
-## Features
-
-- Add Vercel AI Gateway provider support (#1183)
-- rtk: Kiro format tool result compression — handle conversationState.history & currentMessage, preserve error results, ~13.6% savings (#1194)
-
-## Fixes
-
-- openclaw: normalize agent.model object form `{primary, fallbacks}` before .startsWith → fix TypeError & 'not configured' status (#1216)
-- Usage Details pagination: stay inside mobile viewport <640px (#1218)
-- Fix test model error
-- Fix MIMO provider in Codex
-- Disable log file creation when using MITM AG
-
-# v0.4.50 (2026-05-16)
-
-## Fixes
-
-- Fix duplicate tray icon on macOS when hiding to tray
-- Fix tray not showing in background mode on macOS
-- Fix hide to tray broken on Windows/Linux
-- Fix Shutdown button in web UI not working
-
-# v0.4.49 (2026-05-16)
-
-## Features
-
-- Add Kiro provider support: full request/response translation, live model listing, reasoning content support
-- Add `buildOutput` RTK filter with autodetect for npm/yarn/cargo build logs
-- Add MITM warning notification in tray and dashboard
-
-## Improvements
-
-- Add modalities (input/output) to model configuration for OpenCode
-- Fix tray hide-to-tray: keep current process alive instead of spawning detached child (fixes macOS NSStatusItem ghost icon)
-- Fix tray kill: graceful shutdown with SIGTERM/SIGKILL escalation
-- Fix SIGHUP handling so macOS terminal close doesn't kill tray process
-- Hide deprecated providers (qwen, iflow, antigravity)
-- Update i18n across 32 languages
-
-## Fixes
-
-- Fix model check (test-models) blocked by dashboardGuard: pass machineId-based CLI token in internal self-calls
-
-# v0.4.46 (2026-05-15)
-
-## Breaking Changes
-
-- Tunnel public URL changed — old tunnel links no longer work, please reconnect to get the new URL

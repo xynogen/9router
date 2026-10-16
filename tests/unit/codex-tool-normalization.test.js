@@ -5,19 +5,13 @@ import { CodexExecutor } from "../../open-sse/executors/codex.js";
 function normalizeTools(tools) {
   const executor = new CodexExecutor();
   const body = {
-    model: "gpt-5.5",
-    input: [
-      {
-        type: "message",
-        role: "user",
-        content: [{ type: "input_text", text: "probe" }],
-      },
-    ],
+    model: "gpt-5.6-terra",
+    input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "probe" }] }],
     tools,
     stream: true,
   };
 
-  executor.transformRequest("gpt-5.5", body, true, {
+  executor.transformRequest("gpt-5.6-terra", body, true, {
     connectionId: "test-codex-tools",
     providerSpecificData: {},
   });
@@ -60,13 +54,7 @@ describe("CodexExecutor tool normalization", () => {
     };
     const body = {
       model: "gpt-5.4-mini",
-      input: [
-        {
-          type: "message",
-          role: "user",
-          content: [{ type: "input_text", text: "test for session title" }],
-        },
-      ],
+      input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "test for session title" }] }],
       stream: true,
       metadata: { unsupported: true },
       text: {
@@ -136,19 +124,10 @@ describe("CodexExecutor tool normalization", () => {
     const tools = normalizeTools([
       { type: "web_search", search_context_size: "medium" },
       { type: "image_generation", size: "1024x1024" },
-      {
-        type: "mcp",
-        server_label: "docs",
-        server_url: "https://example.com/mcp",
-      },
+      { type: "mcp", server_label: "docs", server_url: "https://example.com/mcp" },
       { type: "local_shell" },
       { type: "code_interpreter", container: { type: "auto" } },
-      {
-        type: "computer",
-        display_width: 1024,
-        display_height: 768,
-        environment: "browser",
-      },
+      { type: "computer", display_width: 1024, display_height: 768, environment: "browser" },
     ]);
 
     expect(tools.map((tool) => tool.type)).toEqual([
@@ -162,8 +141,7 @@ describe("CodexExecutor tool normalization", () => {
   });
 
   it("strips only Unicode-property patterns rejected by Codex", () => {
-    const unicodePattern =
-      "^(?!__.*__$)[^\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}]{1,200}$";
+    const unicodePattern = "^(?!__.*__$)[^\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}]{1,200}$";
     const validPattern = "^[a-z][a-z0-9_-]{0,31}$";
     const sourceParameters = {
       type: "object",
@@ -178,32 +156,20 @@ describe("CodexExecutor tool normalization", () => {
         // A property named "pattern" is data, not the schema keyword.
         pattern: { type: "string", pattern: validPattern },
       },
-      allOf: [
-        { properties: { title: { type: "string", pattern: unicodePattern } } },
-      ],
+      allOf: [{ properties: { title: { type: "string", pattern: unicodePattern } } }],
     };
-    const tools = normalizeTools([
-      {
-        type: "function",
-        name: "Artifact",
-        parameters: sourceParameters,
-      },
-    ]);
+    const tools = normalizeTools([{
+      type: "function",
+      name: "Artifact",
+      parameters: sourceParameters,
+    }]);
 
-    expect(
-      tools[0].parameters.properties.artifact.properties.name.pattern,
-    ).toBeUndefined();
-    expect(
-      tools[0].parameters.properties.artifact.properties.slug.pattern,
-    ).toBe(validPattern);
+    expect(tools[0].parameters.properties.artifact.properties.name.pattern).toBeUndefined();
+    expect(tools[0].parameters.properties.artifact.properties.slug.pattern).toBe(validPattern);
     expect(tools[0].parameters.properties.pattern.pattern).toBe(validPattern);
-    expect(
-      tools[0].parameters.allOf[0].properties.title.pattern,
-    ).toBeUndefined();
+    expect(tools[0].parameters.allOf[0].properties.title.pattern).toBeUndefined();
     // Copy-on-write: the caller's schema remains available for another provider.
-    expect(sourceParameters.properties.artifact.properties.name.pattern).toBe(
-      unicodePattern,
-    );
+    expect(sourceParameters.properties.artifact.properties.name.pattern).toBe(unicodePattern);
   });
 
   it("keeps escaped literal property text and schema identity when no strip is needed", () => {
@@ -214,35 +180,27 @@ describe("CodexExecutor tool normalization", () => {
         simple: { type: "string", pattern: "^[A-Z]+$" },
       },
     };
-    const tools = normalizeTools([
-      { type: "function", name: "probe", parameters },
-    ]);
+    const tools = normalizeTools([{ type: "function", name: "probe", parameters }]);
 
     expect(tools[0].parameters).toBe(parameters);
     expect(tools[0].parameters.properties.literal.pattern).toBe("^\\\\p{Cc}$");
   });
 
   it("sanitizes nested namespace function schemas", () => {
-    const tools = normalizeTools([
-      {
-        type: "namespace",
-        name: "agent",
-        tools: [
-          {
-            type: "function",
-            name: "Artifact",
-            parameters: {
-              type: "object",
-              properties: { name: { type: "string", pattern: "^\\p{Cc}+$" } },
-            },
-          },
-        ],
-      },
-    ]);
+    const tools = normalizeTools([{
+      type: "namespace",
+      name: "agent",
+      tools: [{
+        type: "function",
+        name: "Artifact",
+        parameters: {
+          type: "object",
+          properties: { name: { type: "string", pattern: "^\\p{Cc}+$" } },
+        },
+      }],
+    }]);
 
-    expect(
-      tools[0].tools[0].parameters.properties.name.pattern,
-    ).toBeUndefined();
+    expect(tools[0].tools[0].parameters.properties.name.pattern).toBeUndefined();
   });
 
   it("preserves custom freeform tools with format payloads", () => {
