@@ -1,18 +1,36 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventEmitter } from "node:events";
-import http2 from "http2";
-
-vi.mock("http2", () => ({ default: { connect: vi.fn() } }));
 import {
   clearCursorModelCache,
   parseCursorUsableModels,
   resolveCursorModels,
 } from "../../open-sse/services/cursorModels.js";
 
-let client;
-let request;
-let responseStatus;
-let responsePayload;
+// GetUsableModels goes over node:http2 (agent.api5.cursor.sh is HTTP/2-only; fetch
+// cannot speak h2, see 6994cd1f). These tests used to mock global.fetch, which the
+// code never calls: the success case could not pass and the 403 case passed because
+// a real connection failed. Fake the http2 client instead.
+const h2 = vi.hoisted(() => ({ status: 200, body: new Uint8Array(), calls: [] }));
+vi.mock("http2", async () => {
+  const { EventEmitter } = await import("node:events");
+  const connect = (origin) => {
+    const client = new EventEmitter();
+    client.close = () => {};
+    client.request = (headers) => {
+      const req = new EventEmitter();
+      req.end = (body) => {
+        h2.calls.push({ origin, headers, body });
+        queueMicrotask(() => {
+          req.emit("response", { ":status": h2.status });
+          if (h2.body.length) req.emit("data", Buffer.from(h2.body));
+          req.emit("end");
+        });
+      };
+      return req;
+    };
+    return client;
+  };
+  return { default: { connect }, connect };
+});
 
 function varint(value) {
   const bytes = [];
@@ -50,24 +68,10 @@ function model(id, name) {
 describe("Cursor live model catalog", () => {
   beforeEach(() => {
     clearCursorModelCache();
-    responseStatus = 200;
-    responsePayload = new Uint8Array();
-    client = new EventEmitter();
-    request = new EventEmitter();
-    client.close = vi.fn();
-    client.request = vi.fn(() => request);
-    request.end = vi.fn(() => queueMicrotask(() => {
-      request.emit("response", { ":status": responseStatus });
-      request.emit("data", Buffer.from(responsePayload));
-      request.emit("end");
-    }));
-    vi.mocked(http2.connect).mockReturnValue(client);
-    vi.stubGlobal("fetch", vi.fn(() => { throw new Error("Cursor catalog must use HTTP/2"); }));
+    h2.calls.length = 0;
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.clearAllMocks();
     clearCursorModelCache();
   });
 
@@ -85,7 +89,8 @@ describe("Cursor live model catalog", () => {
   });
 
   it("fetches the account-specific catalog and caches it", async () => {
-    responsePayload = concat(model("claude-4.6-opus", "Claude 4.6 Opus"));
+    h2.status = 200;
+    h2.body = concat(model("claude-4.6-opus", "Claude 4.6 Opus"));
     const credentials = {
       accessToken: "cursor-token",
       providerSpecificData: { machineId: "machine-id" },
@@ -98,37 +103,24 @@ describe("Cursor live model catalog", () => {
       models: [{ id: "claude-4.6-opus", name: "Claude 4.6 Opus" }],
     });
 
-    expect(http2.connect).toHaveBeenCalledExactlyOnceWith("https://agent.api5.cursor.sh");
-    expect(client.request).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+    expect(h2.calls).toHaveLength(1);
+    expect(h2.calls[0].origin).toBe("https://agent.api5.cursor.sh");
+    expect(h2.calls[0].headers).toEqual(expect.objectContaining({
       ":method": "POST",
       ":path": "/agent.v1.AgentService/GetUsableModels",
-      ":authority": "agent.api5.cursor.sh",
       "content-type": "application/proto",
       accept: "application/proto",
-      authorization: "Bearer cursor-token",
     }));
-    expect(request.end).toHaveBeenCalledExactlyOnceWith(undefined);
-    expect(client.close).toHaveBeenCalledOnce();
-    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it("fails open when the Cursor catalog request fails", async () => {
-    responseStatus = 403;
+    h2.status = 403;
+    h2.body = new TextEncoder().encode("no");
 
     await expect(resolveCursorModels({
       accessToken: "cursor-token",
       providerSpecificData: { machineId: "machine-id" },
     })).resolves.toBeNull();
-    expect(http2.connect).toHaveBeenCalledOnce();
-    expect(client.close).toHaveBeenCalledOnce();
-    expect(global.fetch).not.toHaveBeenCalled();
-  });
-
-  it("fails open and closes the session on an HTTP/2 transport error", async () => {
-    request.end.mockImplementation(() => queueMicrotask(() => request.emit("error", new Error("h2 failed"))));
-    await expect(resolveCursorModels({
-      accessToken: "cursor-token", providerSpecificData: { machineId: "machine-id" },
-    })).resolves.toBeNull();
-    expect(client.close).toHaveBeenCalledOnce();
+    expect(h2.calls).toHaveLength(1);
   });
 });

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-ARG NODE_IMAGE=node:22-slim
+ARG NODE_IMAGE=node:22.23.4-slim
 FROM ${NODE_IMAGE} AS base
 WORKDIR /app
 
@@ -48,8 +48,8 @@ COPY --from=builder /app/node_modules/sql.js ./node_modules/sql.js
 # node-machine-id is createRequire-loaded at runtime; tracing omits it.
 COPY --from=builder /app/node_modules/node-machine-id ./node_modules/node-machine-id
 
-# gosu = drop-in for su-exec on Debian; create non-root user (node user not in slim image)
-RUN apt-get update && apt-get install -y --no-install-recommends gosu \
+# ffmpeg: Codex STT transcoding. gosu = drop-in for su-exec on Debian; create non-root user (node user not in slim image)
+RUN apt-get update && apt-get install -y --no-install-recommends gosu ffmpeg \
   && rm -rf /var/lib/apt/lists/* \
   && groupadd -r node -g 1000 && useradd -r -u 1000 -g node node \
   && mkdir -p /app/data /app/data-home \

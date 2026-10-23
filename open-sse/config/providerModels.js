@@ -232,7 +232,12 @@ export function getModelMeta(aliasOrId, modelId) {
   return findModel(PROVIDER_MODELS[aliasOrId], modelId, aliasOrId) || null;
 }
 
-export function getModelUpstreamId(aliasOrId, modelId, thinkingLevel = null) {
+// clientBody: request body (upstream tier-from-effort). A string is accepted as thinkingLevel (fork meta-models).
+export function getModelUpstreamId(aliasOrId, modelId, clientBody = null, thinkingLevel = null) {
+  if (typeof clientBody === "string") {
+    thinkingLevel = clientBody;
+    clientBody = null;
+  }
   // Split off thinking suffix "(level)" so lookup hits the base id; re-append it to
   // the result so downstream applyThinking still sees the suffix (body.model is stripped separately).
   const sufMatch =
@@ -240,32 +245,44 @@ export function getModelUpstreamId(aliasOrId, modelId, thinkingLevel = null) {
   const suffix = sufMatch ? sufMatch[0] : "";
   const baseId = suffix ? modelId.slice(0, sufMatch.index).trim() : modelId;
   const models = PROVIDER_MODELS[aliasOrId];
-  const found = findModel(models, baseId, aliasOrId);
 
-  // Check if this model is a meta-model with thinking tiers
-  const metaEntry = PROVIDER_META_MODELS[aliasOrId]?.[baseId];
-  const tiers = found?.thinkingTiers || metaEntry?.tiers || metaEntry;
-  if (tiers) {
-    const rawLevel = sufMatch
-      ? sufMatch[0].slice(1, -1).trim().toLowerCase()
-      : thinkingLevel;
-    const targetModelId = resolveThinkingTier(tiers, rawLevel);
-    if (targetModelId && targetModelId !== baseId) {
-      return getModelUpstreamId(
-        aliasOrId,
-        targetModelId + (sufMatch ? "" : suffix),
-      );
+  // Resolve requested thinking level from suffix or client request body
+  const rawSuffix = suffix ? suffix.slice(1, -1).trim().toLowerCase() : "";
+  let tier = rawSuffix === "xhigh" || rawSuffix === "max" ? "high" : rawSuffix === "minimal" ? "low" : rawSuffix;
+  if (!tier && clientBody && typeof clientBody === "object") {
+    const rawEffort = clientBody.reasoning_effort || clientBody.output_config?.effort || (typeof clientBody.reasoning === "object" ? clientBody.reasoning?.effort : null);
+    if (typeof rawEffort === "string" && rawEffort) {
+      const v = rawEffort.toLowerCase().trim();
+      tier = v === "xhigh" || v === "max" ? "high" : v === "minimal" ? "low" : v;
+    } else if (clientBody.thinking && typeof clientBody.thinking === "object") {
+      const b = Number(clientBody.thinking.budget_tokens);
+      if (Number.isFinite(b) && b > 0) {
+        tier = b > 16384 ? "high" : b <= 4096 ? "low" : "medium";
+      }
     }
   }
 
+  // Fork: meta-models with thinking tiers route to their backend tier model
+  const baseFound = findModel(models, baseId, aliasOrId);
+  const metaEntry = PROVIDER_META_MODELS[aliasOrId]?.[baseId];
+  const tiers = baseFound?.thinkingTiers || metaEntry?.tiers || metaEntry;
+  if (tiers) {
+    const rawLevel = rawSuffix || thinkingLevel || tier || null;
+    const targetModelId = resolveThinkingTier(tiers, rawLevel);
+    if (targetModelId && targetModelId !== baseId) {
+      return getModelUpstreamId(aliasOrId, targetModelId);
+    }
+  }
+
+  // Look for tiered variant first if a tier was requested (e.g. gemini-3.8-flash-high)
+  const tieredId = tier ? `${baseId}-${tier}` : null;
+  const found = (tieredId && findModel(models, tieredId, aliasOrId)) || baseFound;
   const resolvedId = found?.upstreamModelId || found?.id;
   if (resolvedId) {
     const presetMatch = resolvedId.match(/\([^()]+\)\s*$/);
     const presetSuffix = presetMatch?.[0] || "";
-    const resolvedBase = presetSuffix
-      ? resolvedId.slice(0, presetMatch.index).trim()
-      : resolvedId;
-    return resolvedBase + (suffix || presetSuffix);
+    const resolvedBase = presetSuffix ? resolvedId.slice(0, presetMatch.index).trim() : resolvedId;
+    return resolvedBase + (suffix || (presetSuffix && tier ? `(${tier})` : presetSuffix));
   }
   if (
     aliasOrId === "cx" &&

@@ -17,8 +17,12 @@ describe("OpenAI → Claude context mapping", () => {
     expect(JSON.stringify(out.system), "Claude Code prompt injected").not.toContain("Claude Code");
   });
 
-  // OpenAI reasoning has no Anthropic signature: do not forge a replayable thinking block.
-  it("keeps the assistant answer without forging unsigned Claude thinking", () => {
+  // KNOWN BUG: assistant.reasoning_content is dropped on the openai→claude leg. c4f80d30
+  // flipped this to a plain `it`, but its change only handles DeepSeek thinking blocks;
+  // the mapping was never implemented (the test fails at c4f80d30 itself). An unsigned
+  // thinking block is only valid for compatible providers (Anthropic requires a
+  // signature), so a fix has to be provider-aware.
+  it.fails("assistant reasoning_content becomes a thinking block", () => {
     const out = T({
       messages: [
         { role: "user", content: "q" },
@@ -26,11 +30,12 @@ describe("OpenAI → Claude context mapping", () => {
         { role: "user", content: "next" },
       ],
     });
+    expect(JSON.stringify(out), "reasoning_content lost").toContain("my hidden reasoning");
     const assistant = out.messages.find((m) => m.role === "assistant");
-    expect(assistant.content).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "text", text: "a" }),
-    ]));
-    expect(assistant.content.some(b => b.type === "thinking")).toBe(false);
+    expect(assistant.content[0]).toEqual(expect.objectContaining({
+      type: "thinking",
+      thinking: "my hidden reasoning",
+    }));
   });
 
   // openai-to-claude.js:298 — tool_choice "none" mapped to {type:"auto"} (loses "do not call" intent)
