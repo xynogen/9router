@@ -358,6 +358,14 @@ export async function handleNonStreamingResponse({
         "Invalid SSE response for non-streaming request",
       );
     }
+    if (parsed.error) {
+      const upstreamStatus = Number(parsed.error.status);
+      const status = Number.isInteger(upstreamStatus) && upstreamStatus >= 400 && upstreamStatus <= 599
+        ? upstreamStatus
+        : HTTP_STATUS.BAD_GATEWAY;
+      appendLog({ status: `FAILED ${status}` });
+      return createErrorResult(status, parsed.error.message || "Upstream SSE stream failed");
+    }
     responseBody = parsed;
   } else {
     try {
