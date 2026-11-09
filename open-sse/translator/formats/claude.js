@@ -646,8 +646,6 @@ export function prepareClaudeRequest(
     // Check if thinking is enabled AND last message is from user
     const lastMessage = filtered[filtered.length - 1];
     const lastMessageIsUser = lastMessage?.role === "user";
-    const thinkingEnabled =
-      body.thinking?.type === "enabled" && lastMessageIsUser;
 
     // DeepSeek models also arrive behind OpenCode Go's /messages transport.
     // They carry the same thinking pass-back constraint as the official
@@ -656,6 +654,10 @@ export function prepareClaudeRequest(
     const deepSeekServed =
       provider === "deepseek" ||
       (provider === "opencode-go" && isDeepSeekModel(body?.model));
+    const thinkingEnabled = lastMessageIsUser && (
+      body.thinking?.type === "enabled" ||
+      (deepSeekServed && body.thinking?.type === "adaptive")
+    );
 
     // Pass 2 (reverse): add cache_control to last assistant + handle thinking for Anthropic
     let lastAssistantProcessed = false;
