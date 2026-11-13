@@ -57,7 +57,17 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
       const data = await res.json();
       if (res.ok) {
         if (isEdit) onSaved?.(data.node);
-        else onCreated?.(data.node);
+        else {
+          // Store the key typed for "Check" too, else the node has no credentials.
+          if (checkKey.trim()) {
+            await fetch("/api/providers", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ provider: data.node.id, name: formData.name, apiKey: checkKey.trim(), defaultModel: checkModelId.trim() || undefined }),
+            });
+          }
+          onCreated?.(data.node);
+        }
       }
     } catch (error) {
       console.log("Error saving custom embedding node:", error);
@@ -132,7 +142,7 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
           hint="Most embedding APIs are OpenAI-compatible: Voyage, Cohere, Jina, Mistral, Together..."
         />
         <Input
-          label="API Key (for Check)"
+          label="API Key"
           type="password"
           value={checkKey}
           onChange={(e) => setCheckKey(e.target.value)}

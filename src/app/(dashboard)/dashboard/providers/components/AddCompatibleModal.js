@@ -78,9 +78,24 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
       });
       const data = await res.json();
       if (res.ok) {
+        // The key typed for "Check" must be stored too, else the node has no credentials.
+        if (checkKey.trim()) {
+          await fetch("/api/providers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              provider: data.node.id,
+              name: formData.name,
+              apiKey: checkKey.trim(),
+              defaultModel: checkModelId.trim() || undefined,
+              testStatus: validationResult?.valid ? "active" : "unknown",
+            }),
+          });
+        }
         onCreated(data.node);
         setFormData(initialFormData());
         setCheckKey("");
+        setCheckModelId("");
         setValidationResult(null);
       }
     } catch (error) {
@@ -166,13 +181,13 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
           hint={config.baseUrlHint}
         />
         <Input
-          label="API Key (for Check)"
+          label="API Key"
           type="password"
           value={checkKey}
           onChange={(e) => setCheckKey(e.target.value)}
         />
         <Input
-          label="Model ID (optional)"
+          label="Default Model ID (optional)"
           value={checkModelId}
           onChange={(e) => setCheckModelId(e.target.value)}
           placeholder={config.modelIdPlaceholder}
