@@ -14,10 +14,10 @@ import { resolveCursorModels } from "open-sse/services/cursorModels.js";
 import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { resolveClineModels, resolveClinepassModels } from "open-sse/services/clinepassModels.js";
 import { NOUS_MODELS_URL, normalizeNousModels } from "open-sse/services/nous.js";
+import { resolveCommandCodeModels } from "open-sse/services/commandcodeModels.js";
 import codexProvider from "open-sse/providers/registry/codex.js";
 
-const GEMINI_CLI_MODELS_URL =
-  "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
+const GEMINI_CLI_MODELS_URL = "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
 
 // Model discovery must identify as the same Codex CLI version as inference.
 const CODEX_MODELS_URL = `https://chatgpt.com/backend-api/codex/models?client_version=${codexProvider.transport.cliVersion}`;
@@ -50,29 +50,26 @@ const parseGeminiCliModels = (data) => {
   return [];
 };
 
-const appendCodexReviewModels = (models) =>
-  models.flatMap((model) => {
-    const id = model?.id || model?.slug || model?.model || model?.name;
-    if (!id) return [];
-    const name = model?.display_name || model?.displayName || model?.name || id;
-    const normalized = { ...model, id, name };
-    const isChatModel =
-      (model?.type || "llm") !== "image" && !id.toLowerCase().includes("embed");
-    if (!isChatModel || id.endsWith("-review")) return [normalized];
-    return [
-      normalized,
-      {
-        ...normalized,
-        id: `${id}-review`,
-        name: `${name} Review`,
-        upstreamModelId: id,
-        quotaFamily: "review",
-      },
-    ];
-  });
+const appendCodexReviewModels = (models) => models.flatMap((model) => {
+  const id = model?.id || model?.slug || model?.model || model?.name;
+  if (!id) return [];
+  const name = model?.display_name || model?.displayName || model?.name || id;
+  const normalized = { ...model, id, name };
+  const isChatModel = (model?.type || "llm") !== "image" && !id.toLowerCase().includes("embed");
+  if (!isChatModel || id.endsWith("-review")) return [normalized];
+  return [
+    normalized,
+    {
+      ...normalized,
+      id: `${id}-review`,
+      name: `${name} Review`,
+      upstreamModelId: id,
+      quotaFamily: "review",
+    },
+  ];
+});
 
-const parseCodexModels = (data) =>
-  appendCodexReviewModels(parseOpenAIStyleModels(data));
+const parseCodexModels = (data) => appendCodexReviewModels(parseOpenAIStyleModels(data));
 
 const createOpenAIModelsConfig = (url) => ({
   url,
@@ -80,7 +77,7 @@ const createOpenAIModelsConfig = (url) => ({
   headers: { "Content-Type": "application/json" },
   authHeader: "Authorization",
   authPrefix: "Bearer ",
-  parseResponse: parseOpenAIStyleModels,
+  parseResponse: parseOpenAIStyleModels
 });
 
 const normalizeRoutedNousModels = (data) => normalizeNousModels(data).map((model) => ({
@@ -101,49 +98,42 @@ const getStaticProviderModels = (providerId) =>
 
 // Generic custom resolver for OAuth providers that need refresh-on-401 + token persist.
 // Receives a `fetchFn(token)` and returns parsed models or throws.
-const buildOAuthResolver =
-  ({ refreshFn, fetchFn, parseFn, errorLabel }) =>
-  async (connection) => {
-    const { accessToken, refreshToken } = connection;
-    if (!accessToken) {
-      return { error: "No valid token found", status: 401 };
-    }
-    let warning;
-    try {
-      let response = await fetchFn(accessToken, connection);
-      if (
-        !response.ok &&
-        (response.status === 401 || response.status === 403) &&
-        refreshToken
-      ) {
-        const refreshed = await refreshFn(connection);
-        if (refreshed?.accessToken) {
-          await updateProviderCredentials(connection.id, {
-            accessToken: refreshed.accessToken,
-            refreshToken: refreshed.refreshToken || refreshToken,
-            expiresIn: refreshed.expiresIn,
-          });
-          connection.accessToken = refreshed.accessToken;
-          if (refreshed.refreshToken)
-            connection.refreshToken = refreshed.refreshToken;
-          response = await fetchFn(refreshed.accessToken, connection);
-        }
+const buildOAuthResolver = ({ refreshFn, fetchFn, parseFn, errorLabel }) => async (connection) => {
+  const { accessToken, refreshToken } = connection;
+  if (!accessToken) {
+    return { error: "No valid token found", status: 401 };
+  }
+  let warning;
+  try {
+    let response = await fetchFn(accessToken, connection);
+    if (!response.ok && (response.status === 401 || response.status === 403) && refreshToken) {
+      const refreshed = await refreshFn(connection);
+      if (refreshed?.accessToken) {
+        await updateProviderCredentials(connection.id, {
+          accessToken: refreshed.accessToken,
+          refreshToken: refreshed.refreshToken || refreshToken,
+          expiresIn: refreshed.expiresIn,
+        });
+        connection.accessToken = refreshed.accessToken;
+        if (refreshed.refreshToken) connection.refreshToken = refreshed.refreshToken;
+        response = await fetchFn(refreshed.accessToken, connection);
       }
-      if (response.ok) {
-        const data = await response.json();
-        const models = parseFn(data);
-        if (models.length > 0) return { models };
-      } else {
-        const errorText = await response.text();
-        warning = `${errorLabel}: ${response.status} ${errorText}`;
-        console.log(`${errorLabel} (falling back to static):`, errorText);
-      }
-    } catch (error) {
-      warning = `${errorLabel}: ${error.message}`;
-      console.log(`${errorLabel} (falling back to static):`, error.message);
     }
-    return { models: [], warning };
-  };
+    if (response.ok) {
+      const data = await response.json();
+      const models = parseFn(data);
+      if (models.length > 0) return { models };
+    } else {
+      const errorText = await response.text();
+      warning = `${errorLabel}: ${response.status} ${errorText}`;
+      console.log(`${errorLabel} (falling back to static):`, errorText);
+    }
+  } catch (error) {
+    warning = `${errorLabel}: ${error.message}`;
+    console.log(`${errorLabel} (falling back to static):`, error.message);
+  }
+  return { models: [], warning };
+};
 
 // Qoder shares one resolver across intl (qoder) and CN (qoder-cn); the
 // credentials carry the connection's provider so qoderModels picks the right
@@ -198,39 +188,42 @@ const PROVIDER_MODELS_CONFIG = {
     authPrefix: "Bearer ",
     parseResponse: (data) => data.data || [],
   },
+  // OAuth (sk-ant-oat) token: Bearer + oauth beta header. Live list lets new
+  // Claude models show up without waiting for a 9router release.
   claude: {
-    url: "https://api.anthropic.com/v1/models",
+    url: "https://api.anthropic.com/v1/models?limit=1000",
     method: "GET",
     headers: {
       "Anthropic-Version": "2023-06-01",
-      "Content-Type": "application/json",
+      "Anthropic-Beta": "oauth-2025-04-20",
+      "Content-Type": "application/json"
     },
-    authHeader: "x-api-key",
-    parseResponse: (data) => data.data || [],
+    authHeader: "Authorization",
+    authPrefix: "Bearer ",
+    parseResponse: (data) => (data.data || []).map((m) => ({ id: m.id, name: m.display_name || m.id }))
   },
   gemini: {
     url: "https://generativelanguage.googleapis.com/v1beta/models",
     method: "GET",
     headers: { "Content-Type": "application/json" },
     authQuery: "key", // Use query param for API key
-    parseResponse: (data) => data.models || [],
+    parseResponse: (data) => data.models || []
   },
   codex: {
     customResolver: buildOAuthResolver({
       refreshFn: (conn) => refreshCodexToken(conn.refreshToken),
-      fetchFn: (token) =>
-        fetch(CODEX_MODELS_URL, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-            originator: "codex_cli_rs",
-          },
-        }),
+      fetchFn: (token) => fetch(CODEX_MODELS_URL, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`,
+          "originator": "codex_cli_rs"
+        }
+      }),
       parseFn: parseCodexModels,
-      errorLabel: "Failed to fetch Codex models",
-    }),
+      errorLabel: "Failed to fetch Codex models"
+    })
   },
   antigravity: {
     url: "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:models",
@@ -239,7 +232,7 @@ const PROVIDER_MODELS_CONFIG = {
     authHeader: "Authorization",
     authPrefix: "Bearer ",
     body: {},
-    parseResponse: (data) => data.models || [],
+    parseResponse: (data) => data.models || []
   },
   github: {
     url: "https://api.githubcopilot.com/models",
@@ -249,7 +242,7 @@ const PROVIDER_MODELS_CONFIG = {
       "Copilot-Integration-Id": "vscode-chat",
       "editor-version": "vscode/1.107.1",
       "editor-plugin-version": "copilot-chat/0.26.7",
-      "user-agent": "GitHubCopilotChat/0.26.7",
+      "user-agent": "GitHubCopilotChat/0.26.7"
     },
     authHeader: "Authorization",
     authPrefix: "Bearer ",
@@ -257,16 +250,16 @@ const PROVIDER_MODELS_CONFIG = {
       if (!data?.data) return [];
       // Filter out embeddings, non-chat models, and disabled models
       return data.data
-        .filter((m) => m.capabilities?.type === "chat")
-        .filter((m) => m.policy?.state !== "disabled") // Only return explicitly enabled models
-        .map((m) => ({
+        .filter(m => m.capabilities?.type === "chat")
+        .filter(m => m.policy?.state !== "disabled") // Only return explicitly enabled models
+        .map(m => ({
           id: m.id,
           name: m.name || m.id,
           version: m.version,
           capabilities: m.capabilities,
-          isDefault: m.model_picker_enabled === true,
+          isDefault: m.model_picker_enabled === true
         }));
-    },
+    }
   },
   openai: createOpenAIModelsConfig("https://api.openai.com/v1/models"),
   openrouter: createOpenAIModelsConfig("https://openrouter.ai/api/v1/models"),
@@ -274,15 +267,27 @@ const PROVIDER_MODELS_CONFIG = {
     ...createOpenAIModelsConfig(NOUS_MODELS_URL),
     parseResponse: normalizeRoutedNousModels,
   },
+  // CommandCode's catalog URL needs no auth, but the route's token guard above
+  // still requires a configured connection, so an empty key cannot enumerate it.
+  commandcode: {
+    customResolver: async () => {
+      const result = await resolveCommandCodeModels();
+      if (result?.models?.length) return { models: result.models };
+      return {
+        models: getStaticProviderModels("commandcode"),
+        warning: "CommandCode returned no live models; falling back to static catalog.",
+      };
+    },
+  },
   anthropic: {
     url: "https://api.anthropic.com/v1/models",
     method: "GET",
     headers: {
       "Anthropic-Version": "2023-06-01",
-      "Content-Type": "application/json",
+      "Content-Type": "application/json"
     },
     authHeader: "x-api-key",
-    parseResponse: (data) => data.data || [],
+    parseResponse: (data) => data.data || []
   },
 
   alicode: {
@@ -291,7 +296,7 @@ const PROVIDER_MODELS_CONFIG = {
     headers: { "Content-Type": "application/json" },
     authHeader: "Authorization",
     authPrefix: "Bearer ",
-    parseResponse: (data) => data.data || [],
+    parseResponse: (data) => data.data || []
   },
   "alicode-intl": {
     url: "https://coding-intl.dashscope.aliyuncs.com/v1/models",
@@ -299,7 +304,7 @@ const PROVIDER_MODELS_CONFIG = {
     headers: { "Content-Type": "application/json" },
     authHeader: "Authorization",
     authPrefix: "Bearer ",
-    parseResponse: (data) => data.data || [],
+    parseResponse: (data) => data.data || []
   },
   "alims-intl": {
     url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models",
@@ -307,14 +312,10 @@ const PROVIDER_MODELS_CONFIG = {
     headers: { "Content-Type": "application/json" },
     authHeader: "Authorization",
     authPrefix: "Bearer ",
-    parseResponse: (data) => data.data || [],
+    parseResponse: (data) => data.data || []
   },
-  "volcengine-ark": createOpenAIModelsConfig(
-    "https://ark.cn-beijing.volces.com/api/coding/v3/models",
-  ),
-  byteplus: createOpenAIModelsConfig(
-    "https://ark.ap-southeast.bytepluses.com/api/coding/v3/models",
-  ),
+  "volcengine-ark": createOpenAIModelsConfig("https://ark.cn-beijing.volces.com/api/coding/v3/models"),
+  byteplus: createOpenAIModelsConfig("https://ark.ap-southeast.bytepluses.com/api/coding/v3/models"),
 
   // OpenAI-compatible API key providers
   deepseek: createOpenAIModelsConfig("https://api.deepseek.com/models"),
@@ -322,29 +323,20 @@ const PROVIDER_MODELS_CONFIG = {
   xai: createOpenAIModelsConfig("https://api.x.ai/v1/models"),
   mistral: createOpenAIModelsConfig("https://api.mistral.ai/v1/models"),
   perplexity: createOpenAIModelsConfig("https://api.perplexity.ai/v1/models"),
-  "perplexity-agent": createOpenAIModelsConfig(
-    "https://api.perplexity.ai/v1/models",
-  ),
+  "perplexity-agent": createOpenAIModelsConfig("https://api.perplexity.ai/v1/models"),
   together: createOpenAIModelsConfig("https://api.together.xyz/v1/models"),
-  fireworks: createOpenAIModelsConfig(
-    "https://api.fireworks.ai/inference/v1/models",
-  ),
+  fireworks: createOpenAIModelsConfig("https://api.fireworks.ai/inference/v1/models"),
   cerebras: createOpenAIModelsConfig("https://api.cerebras.ai/v1/models"),
   cohere: createOpenAIModelsConfig("https://api.cohere.ai/v1/models"),
   nebius: createOpenAIModelsConfig("https://api.studio.nebius.ai/v1/models"),
-  siliconflow: createOpenAIModelsConfig(
-    "https://api.siliconflow.com/v1/models",
-  ),
+  siliconflow: createOpenAIModelsConfig("https://api.siliconflow.com/v1/models"),
   hyperbolic: createOpenAIModelsConfig("https://api.hyperbolic.xyz/v1/models"),
   ollama: createOpenAIModelsConfig("https://ollama.com/api/tags"),
   // ollama-local: url resolved dynamically below via providerSpecificData.baseUrl
-  nanobanana: createOpenAIModelsConfig(
-    "https://api.nanobananaapi.ai/v1/models",
-  ),
+  nanobanana: createOpenAIModelsConfig("https://api.nanobananaapi.ai/v1/models"),
   chutes: createOpenAIModelsConfig("https://llm.chutes.ai/v1/models"),
-  nvidia: createOpenAIModelsConfig(
-    "https://integrate.api.nvidia.com/v1/models",
-  ),
+  nvidia: createOpenAIModelsConfig("https://integrate.api.nvidia.com/v1/models"),
+  synthetic: createOpenAIModelsConfig("https://api.synthetic.new/openai/v1/models"),
   assemblyai: createOpenAIModelsConfig("https://api.assemblyai.com/v1/models"),
   "vercel-ai-gateway": createOpenAIModelsConfig("https://ai-gateway.vercel.sh/v1/models"),
   // OpenAI-compatible aggregators.
@@ -355,38 +347,30 @@ const PROVIDER_MODELS_CONFIG = {
   bai: createOpenAIModelsConfig("https://api.b.ai/v1/models"),
   kimchi: {
     customResolver: async (connection) => {
-      const result = await resolveKimchiModels(
-        {
-          accessToken: connection.accessToken,
-          apiKey: connection.apiKey,
-          providerSpecificData: connection.providerSpecificData || {},
-        },
-        { forceRefresh: true, log: console },
-      );
+      const result = await resolveKimchiModels({
+        accessToken: connection.accessToken,
+        apiKey: connection.apiKey,
+        providerSpecificData: connection.providerSpecificData || {},
+      }, { forceRefresh: true, log: console });
       if (result?.models?.length) {
         return { models: result.models };
       }
       return {
         models: getStaticProviderModels("kimchi"),
-        warning:
-          "Kimchi returned no live models; falling back to static catalog.",
+        warning: "Kimchi returned no live models; falling back to static catalog.",
       };
-    },
+    }
   },
   cursor: {
     customResolver: async (connection) => {
-      const result = await resolveCursorModels(
-        {
-          accessToken: connection.accessToken,
-          providerSpecificData: connection.providerSpecificData || {},
-        },
-        { forceRefresh: true, log: console },
-      );
+      const result = await resolveCursorModels({
+        accessToken: connection.accessToken,
+        providerSpecificData: connection.providerSpecificData || {},
+      }, { forceRefresh: true, log: console });
       if (result?.models?.length) return { models: result.models };
       return {
         models: getStaticProviderModels("cursor"),
-        warning:
-          "Cursor returned no live models; falling back to static catalog.",
+        warning: "Cursor returned no live models; falling back to static catalog.",
       };
     },
   },
@@ -442,8 +426,7 @@ const PROVIDER_MODELS_CONFIG = {
       if (result?.models?.length) return { models: result.models };
       return {
         models: getStaticProviderModels("cline"),
-        warning:
-          "Cline returned no live models; falling back to static catalog.",
+        warning: "Cline returned no live models; falling back to static catalog.",
       };
     },
   },
@@ -456,8 +439,7 @@ const PROVIDER_MODELS_CONFIG = {
       if (result?.models?.length) return { models: result.models };
       return {
         models: getStaticProviderModels("clinepass"),
-        warning:
-          "ClinePass returned no live models; falling back to static catalog.",
+        warning: "ClinePass returned no live models; falling back to static catalog.",
       };
     },
   },
@@ -468,7 +450,7 @@ const PROVIDER_MODELS_CONFIG = {
       const credentials = {
         accessToken: connection.accessToken,
         refreshToken: connection.refreshToken,
-        providerSpecificData: connection.providerSpecificData || {},
+        providerSpecificData: connection.providerSpecificData || {}
       };
       let warning;
       try {
@@ -482,10 +464,9 @@ const PROVIDER_MODELS_CONFIG = {
                 expiresIn: refreshed.expiresIn,
               });
               connection.accessToken = refreshed.accessToken;
-              if (refreshed.refreshToken)
-                connection.refreshToken = refreshed.refreshToken;
+              if (refreshed.refreshToken) connection.refreshToken = refreshed.refreshToken;
             }
-          },
+          }
         });
         if (result?.models?.length) {
           return {
@@ -496,84 +477,67 @@ const PROVIDER_MODELS_CONFIG = {
               contextLength: m.contextLength,
               rateMultiplier: m.rateMultiplier,
               capabilities: m.capabilities,
-              description: m.description,
-            })),
+              description: m.description
+            }))
           };
         }
         warning = "Kiro returned no models; falling back to static catalog.";
       } catch (error) {
         warning = `Failed to fetch Kiro models: ${error.message}`;
-        console.log(
-          "Failed to fetch Kiro models dynamically, falling back to static:",
-          error.message,
-        );
+        console.log("Failed to fetch Kiro models dynamically, falling back to static:", error.message);
       }
       return { models: [], warning };
-    },
+    }
   },
   qoder: buildQoderModelsResolver("qoder"),
   "qoder-cn": buildQoderModelsResolver("qoder-cn"),
   "gemini-cli": {
     customResolver: buildOAuthResolver({
-      refreshFn: (conn) =>
-        refreshGoogleToken(
-          conn.refreshToken,
-          GEMINI_CONFIG.clientId,
-          GEMINI_CONFIG.clientSecret,
-        ),
+      refreshFn: (conn) => refreshGoogleToken(conn.refreshToken, GEMINI_CONFIG.clientId, GEMINI_CONFIG.clientSecret),
       fetchFn: (token, conn) => {
-        const projectId =
-          conn.projectId || conn.providerSpecificData?.projectId;
+        const projectId = conn.projectId || conn.providerSpecificData?.projectId;
         const body = projectId ? { project: projectId } : {};
         return fetch(GEMINI_CLI_MODELS_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            "Authorization": `Bearer ${token}`,
             "User-Agent": "google-api-nodejs-client/9.15.1",
-            "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
+            "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1"
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify(body)
         });
       },
       parseFn: parseGeminiCliModels,
-      errorLabel: "Failed to fetch Gemini CLI models",
-    }),
+      errorLabel: "Failed to fetch Gemini CLI models"
+    })
   },
   "grok-cli": {
     customResolver: async (connection) => {
-      const proxy = await resolveConnectionProxyConfig(
-        connection.providerSpecificData || {},
-      );
-      const result = await resolveGrokCliModels(
-        {
-          ...connection,
-          connectionId: connection.id,
+      const proxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
+      const result = await resolveGrokCliModels({
+        ...connection,
+        connectionId: connection.id,
+      }, {
+        log: console,
+        proxyOptions: {
+          connectionProxyEnabled: proxy.connectionProxyEnabled === true,
+          connectionProxyUrl: proxy.connectionProxyUrl || "",
+          connectionNoProxy: proxy.connectionNoProxy || "",
+          vercelRelayUrl: proxy.vercelRelayUrl || "",
+          strictProxy: proxy.strictProxy === true,
         },
-        {
-          log: console,
-          proxyOptions: {
-            connectionProxyEnabled: proxy.connectionProxyEnabled === true,
-            connectionProxyUrl: proxy.connectionProxyUrl || "",
-            connectionNoProxy: proxy.connectionNoProxy || "",
-            vercelRelayUrl: proxy.vercelRelayUrl || "",
-            strictProxy: proxy.strictProxy === true,
-          },
-          onCredentialsRefreshed: async (refreshed) => {
-            await updateProviderCredentials(connection.id, {
-              ...refreshed,
-              existingProviderSpecificData:
-                connection.providerSpecificData || {},
-            });
-          },
+        onCredentialsRefreshed: async (refreshed) => {
+          await updateProviderCredentials(connection.id, {
+            ...refreshed,
+            existingProviderSpecificData: connection.providerSpecificData || {},
+          });
         },
-      );
+      });
       if (result.models.length) return result;
       return {
         models: getStaticProviderModels("grok-cli"),
-        warning:
-          result.warning ||
-          "Grok CLI returned no live models; using static catalog.",
+        warning: result.warning || "Grok CLI returned no live models; using static catalog.",
       };
     },
   },
@@ -582,63 +546,51 @@ const PROVIDER_MODELS_CONFIG = {
       const url = `${resolveOllamaLocalHost(connection)}/api/tags`;
       const response = await fetch(url, {
         method: "GET",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" }
       });
       if (!response.ok) {
         const errorText = await response.text();
         console.log("Error fetching models from ollama-local:", errorText);
-        return {
-          error: `Failed to fetch models: ${response.status}`,
-          status: response.status,
-        };
+        return { error: `Failed to fetch models: ${response.status}`, status: response.status };
       }
       const data = await response.json();
       return { models: parseOpenAIStyleModels(data) };
-    },
-  },
+    }
+  }
 };
 
 /**
  * GET /api/providers/[id]/models - Get models list from provider
  */
-export async function GET(_request, { params }) {
+export async function GET(request, { params }) {
   try {
     const { id } = await params;
     const connection = await getProviderConnectionById(id);
 
     if (!connection) {
-      return NextResponse.json(
-        { error: "Connection not found" },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
 
     if (isOpenAICompatibleProvider(connection.provider)) {
       const baseUrl = connection.providerSpecificData?.baseUrl;
       if (!baseUrl) {
-        return NextResponse.json(
-          { error: "No base URL configured for OpenAI compatible provider" },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: "No base URL configured for OpenAI compatible provider" }, { status: 400 });
       }
       const url = `${baseUrl.replace(/\/$/, "")}/models`;
       const response = await fetch(url, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${connection.apiKey}`,
+          "Authorization": `Bearer ${connection.apiKey}`,
         },
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.log(
-          `Error fetching models from ${connection.provider}:`,
-          errorText,
-        );
+        console.log(`Error fetching models from ${connection.provider}:`, errorText);
         return NextResponse.json(
           { error: `Failed to fetch models: ${response.status}` },
-          { status: response.status },
+          { status: response.status }
         );
       }
 
@@ -648,17 +600,14 @@ export async function GET(_request, { params }) {
       return NextResponse.json({
         provider: connection.provider,
         connectionId: connection.id,
-        models,
+        models
       });
     }
 
     if (isAnthropicCompatibleProvider(connection.provider)) {
       let baseUrl = connection.providerSpecificData?.baseUrl;
       if (!baseUrl) {
-        return NextResponse.json(
-          { error: "No base URL configured for Anthropic compatible provider" },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: "No base URL configured for Anthropic compatible provider" }, { status: 400 });
       }
 
       baseUrl = baseUrl.replace(/\/$/, "");
@@ -673,19 +622,16 @@ export async function GET(_request, { params }) {
           "Content-Type": "application/json",
           "x-api-key": connection.apiKey,
           "anthropic-version": "2023-06-01",
-          Authorization: `Bearer ${connection.apiKey}`,
+          "Authorization": `Bearer ${connection.apiKey}`
         },
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.log(
-          `Error fetching models from ${connection.provider}:`,
-          errorText,
-        );
+        console.log(`Error fetching models from ${connection.provider}:`, errorText);
         return NextResponse.json(
           { error: `Failed to fetch models: ${response.status}` },
-          { status: response.status },
+          { status: response.status }
         );
       }
 
@@ -695,17 +641,15 @@ export async function GET(_request, { params }) {
       return NextResponse.json({
         provider: connection.provider,
         connectionId: connection.id,
-        models,
+        models
       });
     }
 
     const config = PROVIDER_MODELS_CONFIG[connection.provider];
     if (!config) {
       return NextResponse.json(
-        {
-          error: `Provider ${connection.provider} does not support models listing`,
-        },
-        { status: 400 },
+        { error: `Provider ${connection.provider} does not support models listing` },
+        { status: 400 }
       );
     }
 
@@ -713,29 +657,20 @@ export async function GET(_request, { params }) {
     if (typeof config.customResolver === "function") {
       const result = await config.customResolver(connection);
       if (result.error) {
-        return NextResponse.json(
-          { error: result.error },
-          { status: result.status || 500 },
-        );
+        return NextResponse.json({ error: result.error }, { status: result.status || 500 });
       }
       return NextResponse.json({
         provider: connection.provider,
         connectionId: connection.id,
         models: result.models,
-        ...(result.warning ? { warning: result.warning } : {}),
+        ...(result.warning ? { warning: result.warning } : {})
       });
     }
 
     // Get auth token
-    const token =
-      connection.providerSpecificData?.copilotToken ||
-      connection.accessToken ||
-      connection.apiKey;
+    const token = connection.providerSpecificData?.copilotToken || connection.accessToken || connection.apiKey;
     if (!token) {
-      return NextResponse.json(
-        { error: "No valid token found" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "No valid token found" }, { status: 401 });
     }
 
     // Build request URL
@@ -753,7 +688,7 @@ export async function GET(_request, { params }) {
     // Make request
     const fetchOptions = {
       method: config.method,
-      headers,
+      headers
     };
 
     if (config.body && config.method === "POST") {
@@ -764,13 +699,10 @@ export async function GET(_request, { params }) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.log(
-        `Error fetching models from ${connection.provider}:`,
-        errorText,
-      );
+      console.log(`Error fetching models from ${connection.provider}:`, errorText);
       return NextResponse.json(
         { error: `Failed to fetch models: ${response.status}` },
-        { status: response.status },
+        { status: response.status }
       );
     }
 
@@ -780,13 +712,10 @@ export async function GET(_request, { params }) {
     return NextResponse.json({
       provider: connection.provider,
       connectionId: connection.id,
-      models,
+      models
     });
   } catch (error) {
     console.log("Error fetching provider models:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch models" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to fetch models" }, { status: 500 });
   }
 }
