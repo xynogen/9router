@@ -66,6 +66,13 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
               body: JSON.stringify({ provider: data.node.id, name: formData.name, apiKey: checkKey.trim(), defaultModel: checkModelId.trim() || undefined }),
             });
           }
+          if (checkModelId.trim()) {
+            await fetch("/api/models/custom", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ providerAlias: data.node.id, id: checkModelId.trim(), type: "embedding" }),
+            });
+          }
           onCreated?.(data.node);
         }
       }

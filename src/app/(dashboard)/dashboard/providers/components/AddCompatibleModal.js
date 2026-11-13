@@ -92,6 +92,14 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
             }),
           });
         }
+        // Register the model too, else the new node lists no models.
+        if (checkModelId.trim()) {
+          await fetch("/api/models/custom", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ providerAlias: data.node.id, id: checkModelId.trim(), type: "llm" }),
+          });
+        }
         onCreated(data.node);
         setFormData(initialFormData());
         setCheckKey("");

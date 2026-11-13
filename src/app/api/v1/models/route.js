@@ -486,7 +486,11 @@ export async function buildModelsList(kindFilter, options = {}) {
           )
         : providerModels.map((model) => model.id);
 
-      if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch) {
+      // User-added models are an explicit list; only mirror upstream /models when there are none.
+      const hasUserModels = customModels.some(
+        (m) => m?.id && [staticAlias, outputAlias, providerId].includes(m.providerAlias),
+      );
+      if (isCompatibleProvider && rawModelIds.length === 0 && !hasUserModels && !skipDynamicFetch) {
         rawModelIds = await fetchCompatibleModelIds(conn);
       }
 

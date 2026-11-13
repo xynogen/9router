@@ -242,6 +242,21 @@ export default function ProviderDetailPage() {
     }
   };
 
+  const handleSetModelsDisabled = async (ids, disabled) => {
+    try {
+      const res = disabled
+        ? await fetch("/api/models/disabled", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ providerAlias: providerStorageAlias, ids }),
+          })
+        : await Promise.all(ids.map((id) => fetch(`/api/models/disabled?providerAlias=${encodeURIComponent(providerStorageAlias)}&id=${encodeURIComponent(id)}`, { method: "DELETE" }))).then((rs) => rs[0] || { ok: true });
+      if (res.ok) await fetchDisabledModels();
+    } catch (error) {
+      console.log("Error updating disabled models:", error);
+    }
+  };
+
   const handleEnableModel = async (modelId) => {
     try {
       const res = await fetch(`/api/models/disabled?providerAlias=${encodeURIComponent(providerStorageAlias)}&id=${encodeURIComponent(modelId)}`, { method: "DELETE" });
@@ -1204,6 +1219,8 @@ export default function ProviderDetailPage() {
           onDeleteCustomModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias)}
           connections={connections}
           isAnthropic={isAnthropicCompatible}
+          disabledModelIds={disabledModelIds}
+          onSetModelsDisabled={handleSetModelsDisabled}
         />
       );
     }
