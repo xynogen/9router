@@ -26,6 +26,8 @@ const { buildModelsList } = await import(
 describe("buildModelsList with noAuth providers (OpenCode Free)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Live opencode resolver must not hit the network; fall back to the static registry.
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     mocks.getCombos.mockResolvedValue([]);
     mocks.getCustomModels.mockResolvedValue([]);
     mocks.getModelAliases.mockResolvedValue({});
