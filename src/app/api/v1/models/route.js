@@ -456,10 +456,10 @@ export async function buildModelsList(kindFilter, options = {}) {
   }
 
   if (connections.length === 0) {
-    // DB unavailable -> return static models, filtered by per-model kind
+    // Preserve the static fallback for other providers. OpenCode uses its dashboard catalog below.
     for (const [alias, providerModels] of Object.entries(PROVIDER_MODELS)) {
       const providerId = ALIAS_TO_PROVIDER_ID[alias] || alias;
-      if (!providerMatchesKinds(providerId, kindFilter)) continue;
+      if (providerId === "opencode" || !providerMatchesKinds(providerId, kindFilter)) continue;
       for (const model of providerModels) {
         if (!kindFilter.includes(modelKind(model))) continue;
         if (isDisabled(alias, model.id) || isDisabled(providerId, model.id)) continue;
@@ -477,7 +477,7 @@ export async function buildModelsList(kindFilter, options = {}) {
       // Custom models without active connection are LLM-only by current schema
       if (!kindFilter.includes(LLM_KIND)) continue;
       const providerAlias = customModel.providerAlias;
-      if (!providerAlias) continue;
+      if (!providerAlias || (ALIAS_TO_PROVIDER_ID[providerAlias] || providerAlias) === "opencode") continue;
 
       const modelId = String(customModel.id).trim();
       if (!modelId) continue;
@@ -488,8 +488,12 @@ export async function buildModelsList(kindFilter, options = {}) {
         owned_by: providerAlias,
       });
     }
-  } else {
+  }
+
+  if (activeConnectionByProvider.size > 0) {
     for (const [providerId, conn] of activeConnectionByProvider.entries()) {
+      const isOpenCodeFree = providerId === "opencode";
+      if (connections.length === 0 && !isOpenCodeFree) continue;
       if (!providerMatchesKinds(providerId, kindFilter)) continue;
 
       const staticAlias = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
@@ -501,14 +505,15 @@ export async function buildModelsList(kindFilter, options = {}) {
       const providerModels = PROVIDER_MODELS[staticAlias] || [];
       const enabledModels = conn?.providerSpecificData?.enabledModels;
       const hasExplicitEnabledModels =
-        Array.isArray(enabledModels) && enabledModels.length > 0;
+        !isOpenCodeFree && Array.isArray(enabledModels) && enabledModels.length > 0;
       const isCompatibleProvider =
         isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId);
 
       // Build kind lookup for static models so we can filter even when only IDs are exposed
       const staticModelKindById = new Map(
-        providerModels.map((m) => [m.id, modelKind(m)])
+        providerModels.map((m) => [m.id, isOpenCodeFree ? getModelKind(m, LLM_KIND) : modelKind(m)])
       );
+      const hiddenModelIds = isOpenCodeFree ? new Set(providerModels.filter((m) => m.hidden).map((m) => m.id)) : null;
       let liveModelKindById = new Map();
       let liveCapabilitiesById = new Map();
 
@@ -538,7 +543,8 @@ export async function buildModelsList(kindFilter, options = {}) {
         try {
           const live = await liveResolver(conn);
           if (live?.models?.length) {
-            rawModelIds = live.models.map((m) => m.id);
+            // OpenCode's live catalog supplies limits, not models the dashboard hasn't added.
+            if (!isOpenCodeFree) rawModelIds = live.models.map((m) => m.id);
             liveModelKindById = new Map(
               live.models
                 .filter((m) => m?.id)
@@ -617,10 +623,14 @@ export async function buildModelsList(kindFilter, options = {}) {
         // Resolve kind: prefer custom/live metadata, then static, then ID heuristics.
         const customKind = customModelKindById.get(modelId);
         const liveKind = liveModelKindById.get(modelId);
-        const kind = customKind || liveKind || staticModelKindById.get(modelId) || inferKindFromUnknownModelId(modelId);
+        const staticKind = staticModelKindById.get(modelId);
+        const kind = isOpenCodeFree
+          ? staticKind || customKind || LLM_KIND
+          : customKind || liveKind || staticKind || inferKindFromUnknownModelId(modelId);
         // imageToText custom models stay in the LLM list (vision-capable chat models)
-        const allowAsLlm = kind === "imageToText" && kindFilter.includes(LLM_KIND);
+        const allowAsLlm = !isOpenCodeFree && kind === "imageToText" && kindFilter.includes(LLM_KIND);
         if (!kindFilter.includes(kind) && !allowAsLlm) continue;
+        if (isOpenCodeFree && hiddenModelIds.has(modelId)) continue;
         if (isDisabled(outputAlias, modelId) || isDisabled(staticAlias, modelId) || isDisabled(providerId, modelId)) continue;
 
         const model = {

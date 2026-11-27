@@ -83,7 +83,8 @@ export default function ProviderDetailPage() {
   const [thinkingMode, setThinkingMode] = useState("auto");
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {}, schedules: {} });
   const [scheduleConnection, setScheduleConnection] = useState(null);
-  const [suggestedModels, setSuggestedModels] = useState([]);
+  const [suggestedCatalog, setSuggestedCatalog] = useState(null);
+  const suggestedModels = suggestedCatalog?.providerId === providerId ? suggestedCatalog.models : [];
   const [liveModels, setLiveModels] = useState([]);
   // Live-catalog fetch warning/error (surfaced for zed only; cursor behavior unchanged).
   const [liveModelsError, setLiveModelsError] = useState(null);
@@ -550,7 +551,11 @@ export default function ProviderDetailPage() {
   useEffect(() => {
     const fetcher = (OAUTH_PROVIDERS[providerId] || APIKEY_PROVIDERS[providerId] || FREE_PROVIDERS[providerId] || FREE_TIER_PROVIDERS[providerId])?.modelsFetcher;
     if (!fetcher) return;
-    fetchSuggestedModels(fetcher).then(setSuggestedModels);
+    let cancelled = false;
+    fetchSuggestedModels(fetcher).then((models) => {
+      if (!cancelled) setSuggestedCatalog({ providerId, models });
+    });
+    return () => { cancelled = true; };
   }, [providerId]);
 
   const handleSetAlias = async (modelId, alias, providerAliasOverride = providerAlias) => {
@@ -596,6 +601,9 @@ export default function ProviderDetailPage() {
       });
       if (res.ok) {
         await fetchCustomModels();
+        if (providerId === "opencode" && type === "llm" && disabledModelIds.includes(modelId)) {
+          await handleEnableModel(modelId);
+        }
         if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
       } else {
         const data = await res.json();
@@ -1203,6 +1211,29 @@ export default function ProviderDetailPage() {
     }
   };
 
+  const isOpenCodeFree = providerId === "opencode";
+  const allChatModels = [
+    ...models,
+    ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
+  ].filter((m) => !m.hidden && getModelKind(m, "llm") === "llm");
+  const disabledSet = new Set(disabledModelIds);
+  const customModelRows = getProviderCustomModelRows({
+    customModels,
+    modelAliases,
+    providerAlias: providerStorageAlias,
+    builtInModels: models,
+    type: "llm",
+  });
+  const manageableModels = isOpenCodeFree ? [...allChatModels, ...customModelRows] : allChatModels;
+  const addedModelIds = new Set([...models, ...customModelRows].map((m) => m.id));
+  const unaddedModels = [...new Map(suggestedModels.map((m) => [m.id, m])).values()]
+    .filter((m) => !addedModelIds.has(m.id));
+  const disabledDisplayModels = manageableModels.filter((m) => disabledSet.has(m.id));
+  const disabledModelRows = [
+    ...disabledDisplayModels.map((m) => ({ id: m.id, isNew: false })),
+    ...(isOpenCodeFree ? unaddedModels.map((m) => ({ id: m.id, isNew: true })) : []),
+  ];
+
   const renderModelsSection = () => {
     if (isCompatible) {
       return (
@@ -1224,27 +1255,12 @@ export default function ProviderDetailPage() {
         />
       );
     }
-    // Combine hardcoded models with Kilo free models (deduplicated)
-    // Exclude non-llm models (embedding, tts, etc.) — they have dedicated pages under media-providers
-    const allModels = [
-      ...models,
-      ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-    ].filter((m) => { if (m.hidden) return false; const k = getModelKind(m); return !k || k === "llm"; });
-    const disabledSet = new Set(disabledModelIds);
-    const displayModels = allModels.filter((m) => !disabledSet.has(m.id));
-    const disabledDisplayModels = allModels.filter((m) => disabledSet.has(m.id));
-    const customModelRows = getProviderCustomModelRows({
-      customModels,
-      modelAliases,
-      providerAlias: providerStorageAlias,
-      builtInModels: models,
-      type: "llm",
-    });
+    const displayModels = allChatModels.filter((m) => !disabledSet.has(m.id));
 
     return (
       <div className="flex flex-wrap gap-3">
         {/* Custom models first */}
-        {customModelRows.map((model) => (
+        {customModelRows.filter((m) => !isOpenCodeFree || !disabledSet.has(m.id)).map((model) => (
           <ModelRow
             key={`${model.source}-${model.fullModel}`}
             model={{ id: model.id, name: model.name }}
@@ -1335,52 +1351,39 @@ export default function ProviderDetailPage() {
         )}
 
         {/* Suggested models from provider API — show only models not yet added */}
-        {suggestedModels.length > 0 && (() => {
-          const addedFullModels = new Set([
-            ...Object.values(modelAliases),
-            ...customModelRows.map((model) => model.fullModel),
-          ]);
-          const hardcodedIds = new Set(models.map((m) => m.id));
-          const notAdded = suggestedModels.filter(
-            (m) => !addedFullModels.has(`${providerStorageAlias}/${m.id}`) && !hardcodedIds.has(m.id)
-          );
-          if (notAdded.length === 0) return null;
-          return (
-            <div className="w-full mt-2">
-              <p className="text-xs text-text-muted mb-2">Suggested free models (≥200k context):</p>
-              <div className="flex flex-wrap gap-2">
-                {notAdded.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={async () => {
-                      await handleAddCustomModel(m.id, "llm", providerStorageAlias);
-                    }}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
-                    title={`${m.name} · ${(m.contextLength / 1000).toFixed(0)}k ctx`}
-                  >
-                    <span className="material-symbols-outlined text-[13px]">add</span>
-                    {m.id.split("/").pop()}
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Disabled models — restorable */}
-        {disabledDisplayModels.length > 0 && (
+        {!isOpenCodeFree && unaddedModels.length > 0 && (
           <div className="w-full mt-2">
-            <p className="text-xs text-text-muted mb-2">Disabled models ({disabledDisplayModels.length}):</p>
+            <p className="text-xs text-text-muted mb-2">Suggested free models (≥200k context):</p>
             <div className="flex flex-wrap gap-2">
-              {disabledDisplayModels.map((m) => (
+              {unaddedModels.map((m) => (
                 <button
                   key={m.id}
-                  onClick={() => handleEnableModel(m.id)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
-                  title="Restore model"
+                  onClick={() => handleAddCustomModel(m.id)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                  title={m.contextLength ? `${m.name} · ${(m.contextLength / 1000).toFixed(0)}k ctx` : m.name}
                 >
                   <span className="material-symbols-outlined text-[13px]">add</span>
-                  {m.id}
+                  {m.id.split("/").pop()}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Disabled models — restorable */}
+        {disabledModelRows.length > 0 && (
+          <div className="w-full mt-2">
+            <p className="text-xs text-text-muted mb-2">Disabled models ({disabledModelRows.length}):</p>
+            <div className="flex flex-wrap gap-2">
+              {disabledModelRows.map(({ id, isNew }) => (
+                <button
+                  key={id}
+                  onClick={() => isNew ? handleAddCustomModel(id) : handleEnableModel(id)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                  title={isNew ? "Enable model" : "Restore model"}
+                >
+                  <span className="material-symbols-outlined text-[13px]">add</span>
+                  {id}
                 </button>
               ))}
             </div>
@@ -1837,16 +1840,12 @@ export default function ProviderDetailPage() {
             )}
           </div>
           {!isCompatible && (() => {
-            const allIds = [
-              ...models,
-              ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-            ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; }).map((m) => m.id);
-            const activeIds = allIds.filter((id) => !disabledModelIds.includes(id));
+            const activeIds = manageableModels.filter((m) => !disabledSet.has(m.id)).map((m) => m.id);
             return (
               <div className="flex gap-2">
-                {disabledModelIds.length > 0 && (
+                {(isOpenCodeFree ? disabledDisplayModels.length : disabledModelIds.length) > 0 && (
                   <Button size="sm" variant="secondary" icon="restart_alt" onClick={handleEnableAll}>
-                    Active All
+                    {isOpenCodeFree ? "Restore enabled models" : "Active All"}
                   </Button>
                 )}
                 {activeIds.length > 0 && (
