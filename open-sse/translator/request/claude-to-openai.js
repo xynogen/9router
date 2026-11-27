@@ -266,7 +266,7 @@ function convertClaudeMessage(msg, opts = {}) {
     // If has tool results, return array of tool messages
     if (toolResults.length > 0) {
       if (parts.length > 0) {
-        return [...toolResults, { role: ROLE.USER, content: collapseTextParts(parts, opts) }];
+        return [...toolResults, { role: ROLE.USER, content: collapseTextParts(parts, { multiline: true }) }];
       }
       return toolResults;
     }
@@ -275,7 +275,7 @@ function convertClaudeMessage(msg, opts = {}) {
     if (toolCalls.length > 0) {
       const result = { role: ROLE.ASSISTANT };
       if (parts.length > 0) {
-        result.content = collapseTextParts(parts, opts);
+        result.content = collapseTextParts(parts, { multiline: true });
       }
       result.tool_calls = toolCalls;
       return result;
@@ -285,7 +285,7 @@ function convertClaudeMessage(msg, opts = {}) {
     if (parts.length > 0) {
       return {
         role,
-        content: collapseTextParts(parts, opts)
+        content: collapseTextParts(parts, { multiline: true })
       };
     }
 

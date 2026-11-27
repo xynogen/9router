@@ -6,9 +6,9 @@ export function stripAnthropicBillingHeader(text) {
   return text.replace(/^x-anthropic-billing-header:[^\n]*(?:\r?\n)?/i, "");
 }
 
-// Collapse an OpenAI content-part array: a lone text part becomes a plain string,
-// otherwise the array is returned as-is. Cache-aware targets retain marked blocks.
-export function collapseTextParts(parts, opts = {}) {
-  return parts.length === 1 && parts[0].type === OPENAI_BLOCK.TEXT
-    && !(opts.preserveCacheControl && parts[0].cache_control) ? parts[0].text : parts;
+// Text-only arrays can use string form; preserve multimodal blocks and metadata.
+export function collapseTextParts(parts, { multiline = false } = {}) {
+  return (multiline ? parts.length > 0 : parts.length === 1) && parts.every((p) => p.type === OPENAI_BLOCK.TEXT
+    && Object.keys(p).every((key) => key === "type" || key === "text"))
+    ? parts.map((p) => p.text).join("\n") : parts;
 }
