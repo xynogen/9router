@@ -264,12 +264,12 @@ describe("DefaultExecutor.buildHeaders() — anthropic-compatible stripping", ()
 // ─── proxyFetch native transport ────────────────────────────────────────────
 
 describe("proxyAwareFetch — native transport", () => {
-  let fetchMock;
+  const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }));
+  vi.mock("undici", async (importOriginal) => ({ ...await importOriginal(), fetch: fetchMock }));
 
   beforeEach(() => {
     vi.resetModules();
-    fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockReset();
     for (const key of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]) {
       vi.stubEnv(key, "");
     }
@@ -298,7 +298,7 @@ describe("proxyAwareFetch — native transport", () => {
 
       const res = await proxyAwareFetch(url, options);
 
-      expect(fetchMock).toHaveBeenCalledExactlyOnceWith(url, options);
+      expect(fetchMock).toHaveBeenCalledExactlyOnceWith(url, { ...options, dispatcher: expect.any(Object) });
       expect(res).toBe(response);
       expect(res.ok).toBe(true);
       expect(res.status).toBe(200);

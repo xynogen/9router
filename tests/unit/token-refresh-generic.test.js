@@ -9,6 +9,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const originalFetch = global.fetch;
+const { undiciFetch } = vi.hoisted(() => ({ undiciFetch: vi.fn() }));
+vi.mock("undici", async (importOriginal) => ({ ...await importOriginal(), fetch: undiciFetch }));
 
 function mockFetchOnce(payload, { ok = true, status = 200 } = {}) {
   const fn = vi.fn().mockResolvedValue({
@@ -17,12 +19,12 @@ function mockFetchOnce(payload, { ok = true, status = 200 } = {}) {
     json: () => Promise.resolve(payload),
     text: () => Promise.resolve(JSON.stringify(payload)),
   });
-  global.fetch = fn;
+  undiciFetch.mockImplementation(fn);
   return fn;
 }
 
 describe("refreshAccessToken — config-driven profiles", () => {
-  beforeEach(() => { vi.clearAllMocks(); vi.resetModules(); global.fetch = originalFetch; });
+  beforeEach(() => { undiciFetch.mockReset(); vi.resetModules(); });
   afterEach(() => { global.fetch = originalFetch; });
 
   it("iflow: Basic Auth header from clientId:clientSecret, form body keeps client_secret", async () => {
@@ -103,7 +105,7 @@ describe("refreshAccessToken — config-driven profiles", () => {
   });
 });
 describe("Cline refresh", () => {
-  beforeEach(() => { vi.clearAllMocks(); vi.resetModules(); global.fetch = originalFetch; });
+  beforeEach(() => { undiciFetch.mockReset(); vi.resetModules(); });
   afterEach(() => { global.fetch = originalFetch; });
 
   it("uses the extension JSON refresh contract", async () => {

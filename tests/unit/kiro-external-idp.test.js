@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const originalFetch = global.fetch;
+const { undiciFetch } = vi.hoisted(() => ({ undiciFetch: vi.fn() }));
+vi.mock("undici", async (importOriginal) => ({ ...await importOriginal(), fetch: undiciFetch }));
+
 const TEST_CLIENT_ID = "00000000-0000-4000-8000-000000000000";
 const TEST_SCOPE = `api://${TEST_CLIENT_ID}/codewhisperer:conversations offline_access`;
 const TEST_EMAIL = "user@example.com";
@@ -14,14 +16,13 @@ describe("Kiro external_idp (CLIProxyAPI) import and refresh", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    global.fetch = originalFetch;
+    undiciFetch.mockReset();
   });
 
   afterEach(() => {
     vi.doUnmock("next/server");
     vi.doUnmock("@/models");
     vi.doUnmock("../../open-sse/utils/proxyFetch.js");
-    global.fetch = originalFetch;
   });
 
   it("refreshes Microsoft external_idp tokens with form-encoded OAuth body", async () => {
@@ -33,7 +34,7 @@ describe("Kiro external_idp (CLIProxyAPI) import and refresh", () => {
         expires_in: 3600,
       }),
     });
-    global.fetch = fetchMock;
+    undiciFetch.mockImplementation(fetchMock);
 
     const { refreshKiroToken } = await import("../../open-sse/services/tokenRefresh.js");
     const result = await refreshKiroToken("old-refresh-token", {
@@ -79,7 +80,7 @@ describe("Kiro external_idp (CLIProxyAPI) import and refresh", () => {
   it("rejects external_idp refresh endpoints outside Microsoft login", async () => {
     const { refreshKiroToken } = await import("../../open-sse/services/tokenRefresh.js");
     const fetchMock = vi.fn();
-    global.fetch = fetchMock;
+    undiciFetch.mockImplementation(fetchMock);
 
     const result = await refreshKiroToken("old-refresh-token", {
       authMethod: "external_idp",

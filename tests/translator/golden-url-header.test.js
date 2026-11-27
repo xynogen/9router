@@ -23,8 +23,12 @@ const SPECIALIZED = new Set([
   "xiaomi-tokenplan", "mimo-free",
 ]);
 
-// Per-process / per-request values: kimi's random device name, minimax's session UUID.
-const VOLATILE_HEADERS = new Set(["x-msh-device-name", "x-mavis-session-id"]);
+// Keep header presence in snapshots without pinning release, platform, or request values.
+const VOLATILE_HEADERS = new Set([
+  "x-msh-device-name", "x-mavis-session-id", "x-mavis-timezone-offset",
+  "x-client-version", "x-core-version", "x-platform-version", "x-msh-version",
+  "x-conversation-id", "x-conversation-message-id", "x-conversation-request-id", "x-request-id",
+]);
 
 // Sanitize headers: strip tokens + dynamic time fields (kimi X-Msh-Device-Id) so snapshots stay stable.
 function sanitize(headers) {
@@ -35,6 +39,7 @@ function sanitize(headers) {
       ? v.replace(/Bearer .+/, "Bearer <TOK>")
           .replace(/sk-test-APIKEY|tok-test-ACCESS/g, "<CRED>")
           .replace(/kimi-\d{10,}/g, "kimi-<TS>")
+          .replace(/9Router\/\d+\.\d+\.\d+/g, "9Router/<VERSION>")
       : v;
   }
   return out;

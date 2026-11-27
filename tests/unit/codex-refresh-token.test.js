@@ -10,10 +10,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const originalFetch = global.fetch;
+const { undiciFetch } = vi.hoisted(() => ({ undiciFetch: vi.fn() }));
+vi.mock("undici", async (importOriginal) => ({ ...await importOriginal(), fetch: undiciFetch }));
 
 describe("Codex Refresh Token", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    undiciFetch.mockReset();
     vi.resetModules();
     global.fetch = originalFetch;
   });
@@ -27,7 +29,7 @@ describe("Codex Refresh Token", () => {
       ok: true,
       json: () => Promise.resolve(payload),
     });
-    global.fetch = fetchMock;
+    undiciFetch.mockImplementation(fetchMock);
     return fetchMock;
   }
 

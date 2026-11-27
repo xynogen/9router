@@ -1,11 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }));
+vi.mock("undici", async (importOriginal) => ({ ...await importOriginal(), fetch: fetchMock }));
 
 describe("xai/oauth service", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
-    vi.stubGlobal("fetch", vi.fn());
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
   });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   it("validates discovered endpoints are https x.ai URLs", async () => {
     const { validateOAuthEndpoint } = await import("../../src/lib/oauth/services/xai.js");
@@ -85,7 +91,6 @@ describe("xai/oauth service", () => {
   });
 
   it("exchanges dashboard codes against the discovered xAI token endpoint", async () => {
-    const fetchMock = fetch;
     fetchMock
       .mockResolvedValueOnce({
         ok: true,
