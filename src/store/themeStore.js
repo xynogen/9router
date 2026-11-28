@@ -8,6 +8,11 @@ const useThemeStore = create(
   persist(
     (set, get) => ({
       theme: THEME_CONFIG.defaultTheme,
+      accent: "coral",
+      setAccent: (accent) => {
+        set({ accent });
+        applyAccent(accent);
+      },
 
       setTheme: (theme) => {
         set({ theme });
@@ -22,8 +27,8 @@ const useThemeStore = create(
       },
 
       initTheme: () => {
-        const theme = get().theme;
-        applyTheme(theme);
+        applyTheme(get().theme);
+        applyAccent(get().accent);
       },
     }),
     {
@@ -48,6 +53,12 @@ function applyTheme(theme) {
   } else {
     root.classList.remove("dark");
   }
+}
+
+// CSS owns the preset palettes; only known names can reach the DOM.
+const accents = new Set(["coral", "blue", "teal", "violet", "pink", "green", "cyan", "indigo", "red", "gold"]);
+function applyAccent(accent) {
+  if (typeof document !== "undefined") document.documentElement.dataset.accent = accents.has(accent) ? accent : "coral";
 }
 
 export default useThemeStore;

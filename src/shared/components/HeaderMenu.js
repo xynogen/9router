@@ -3,8 +3,17 @@
 import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { useTheme } from "@/shared/hooks/useTheme";
+import useThemeStore from "@/store/themeStore";
 import ChangelogModal from "./ChangelogModal";
 import { ConfirmModal } from "./Modal";
+
+const ACCENTS = [
+  ["coral", "Coral", "#e56a4a"], ["blue", "Blue", "#2563eb"],
+  ["teal", "Teal", "#0d9488"], ["violet", "Violet", "#7c3aed"],
+  ["pink", "Pink", "#db2777"], ["green", "Green", "#15803d"],
+  ["cyan", "Cyan", "#0891b2"], ["indigo", "Indigo", "#4f46e5"],
+  ["red", "Red", "#dc2626"], ["gold", "Gold", "#a16207"],
+];
 
 function MenuItem({ icon, label, onClick, trailing, danger }) {
   return (
@@ -39,6 +48,7 @@ export default function HeaderMenu({ onLogout }) {
   const [shutdownOpen, setShutdownOpen] = useState(false);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
   const { toggleTheme, isDark } = useTheme();
+  const { accent, setAccent } = useThemeStore();
   const menuRef = useRef(null);
 
   const handleShutdown = async () => {
@@ -89,6 +99,23 @@ export default function HeaderMenu({ onLogout }) {
               label="Theme"
               onClick={() => { toggleTheme(); close(); }}
             />
+            <div className="border-t border-border px-4 py-3">
+              <p className="text-xs text-text-muted mb-2">Accent color</p>
+              <div className="grid grid-cols-5 gap-2">
+                {ACCENTS.map(([id, name, color]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setAccent(id)}
+                    aria-label={`${name} accent`}
+                    aria-pressed={accent === id}
+                    title={name}
+                    className={`size-8 rounded-full border-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${accent === id ? "border-text-main" : "border-transparent"}`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </div>
             <MenuItem
               icon="power_settings_new"
               label="Shutdown"

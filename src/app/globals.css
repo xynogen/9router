@@ -118,6 +118,23 @@
   color-scheme: dark;
 }
 
+/* Accent presets override only brand variables, not semantic status colors. */
+:root[data-accent="blue"] { --color-brand-500: #2563eb; --color-brand-600: #1d4ed8; --color-brand-100: #dbeafe; }
+:root[data-accent="teal"] { --color-brand-500: #0d9488; --color-brand-600: #0f766e; --color-brand-100: #ccfbf1; }
+:root[data-accent="violet"] { --color-brand-500: #7c3aed; --color-brand-600: #6d28d9; --color-brand-100: #ede9fe; }
+:root[data-accent="pink"] { --color-brand-500: #db2777; --color-brand-600: #be185d; --color-brand-100: #fce7f3; }
+:root[data-accent="green"] { --color-brand-500: #15803d; --color-brand-600: #166534; --color-brand-100: #dcfce7; }
+:root[data-accent="cyan"] { --color-brand-500: #0891b2; --color-brand-600: #0e7490; --color-brand-100: #cffafe; }
+:root[data-accent="indigo"] { --color-brand-500: #4f46e5; --color-brand-600: #4338ca; --color-brand-100: #e0e7ff; }
+:root[data-accent="red"] { --color-brand-500: #dc2626; --color-brand-600: #b91c1c; --color-brand-100: #fee2e2; }
+:root[data-accent="gold"] { --color-brand-500: #a16207; --color-brand-600: #854d0e; --color-brand-100: #fef3c7; }
+:root[data-accent]:not([data-accent="coral"]), .dark[data-accent]:not([data-accent="coral"]) {
+  --color-primary: var(--color-brand-500);
+  --color-primary-hover: var(--color-brand-600);
+  --shadow-warm: 0 2px 12px -2px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  --shadow-focus: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
 /* ============================================================
    Fix native select dropdowns in dark mode
    ============================================================ */
