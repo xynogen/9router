@@ -59,19 +59,6 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
               </span>
             </div>
           )}
-          <div className="relative shrink-0 group/btn">
-            <button
-              onClick={() => onCopy(displayModel, `model-${model.id}`)}
-              className="rounded p-0.5 text-text-muted hover:bg-sidebar hover:text-primary"
-            >
-              <span className="material-symbols-outlined text-sm">
-                {copied === `model-${model.id}` ? "check" : "content_copy"}
-              </span>
-            </button>
-            <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-              {copied === `model-${model.id}` ? "Copied!" : "Copy"}
-            </span>
-          </div>
           {onDisable && (
             <button
               onClick={onDisable}
@@ -90,6 +77,19 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
               <span className="material-symbols-outlined text-sm">{onDisable ? "delete" : "close"}</span>
             </button>
           )}
+          <div className="relative shrink-0 group/btn">
+            <button
+              onClick={() => onCopy(displayModel, `model-${model.id}`)}
+              className="rounded p-0.5 text-text-muted hover:bg-sidebar hover:text-primary"
+            >
+              <span className="material-symbols-outlined text-sm">
+                {copied === `model-${model.id}` ? "check" : "content_copy"}
+              </span>
+            </button>
+            <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
+              {copied === `model-${model.id}` ? "Copied!" : "Copy"}
+            </span>
+          </div>
         </div>
       </div>
     </div>
