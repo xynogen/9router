@@ -5,18 +5,21 @@ import { Card, Button } from "@/shared/components";
 import { CONSOLE_LOG_CONFIG } from "@/shared/constants/config";
 
 const LOG_LEVEL_COLORS = {
-  LOG: "text-green-400",
-  INFO: "text-blue-400",
-  WARN: "text-yellow-400",
-  ERROR: "text-red-400",
-  DEBUG: "text-purple-400",
+  WARN: "text-amber-300",
+  ERROR: "text-red-300",
 };
 
 function colorLine(line) {
-  const match = line.match(/\[(\w+)\]/g);
-  const levelTag = match ? match[1]?.replace(/\[|\]/g, "") : null;
-  const color = LOG_LEVEL_COLORS[levelTag] || "text-green-400";
-  return <span className={color}>{line}</span>;
+  const match = line.match(/^(\[\d{2}:\d{2}:\d{2}\])\s+(.*)$/s);
+  const message = match ? match[2] : line;
+  const level = message.startsWith("✗") || /\bERROR\b|❌/.test(message) ? "ERROR"
+    : /\bWARN\b|⚠️/.test(message) ? "WARN" : null;
+  return (
+    <span className={LOG_LEVEL_COLORS[level] || "text-slate-300"}>
+      {match && <span className="text-slate-500">{match[1]} </span>}
+      {message}
+    </span>
+  );
 }
 
 export default function ConsoleLogClient() {
@@ -78,7 +81,7 @@ export default function ConsoleLogClient() {
         </div>
         <div
           ref={logRef}
-          className="bg-black rounded-b-lg p-4 text-xs font-mono h-[calc(100vh-220px)] overflow-y-auto"
+          className="bg-slate-950 rounded-b-lg p-4 text-xs font-mono leading-relaxed h-[calc(100vh-220px)] overflow-y-auto"
         >
           {logs.length === 0 ? (
             <span className="text-text-muted">No console logs yet.</span>
