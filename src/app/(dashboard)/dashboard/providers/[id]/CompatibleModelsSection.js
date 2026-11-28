@@ -76,6 +76,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [filter, setFilter] = useState("");
   const [testingModelId, setTestingModelId] = useState(null);
   const [modelTestResults, setModelTestResults] = useState({});
 
@@ -103,6 +104,13 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
     providerAlias: providerStorageAlias,
     type: "llm",
   });
+
+  const query = filter.trim().toLowerCase();
+  const visibleModels = query
+    ? allModels.filter((model) => model.id.toLowerCase().includes(query))
+    : allModels;
+  const enableIds = visibleModels.filter((model) => disabledModelIds.includes(model.id)).map((model) => model.id);
+  const disableIds = visibleModels.filter((model) => !disabledModelIds.includes(model.id)).map((model) => model.id);
 
   const handleAdd = async () => {
     if (!newModel.trim() || adding) return;
@@ -192,9 +200,45 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
         </p>
       )}
 
+      {(allModels.length > 5 || filter) && (
+        <div className="flex items-end gap-2 flex-wrap">
+          <div className="flex-1 min-w-[200px]">
+            <input
+              type="text"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter models..."
+              aria-label="Filter models"
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
+            />
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            icon="done"
+            onClick={() => onSetModelsDisabled(enableIds, false)}
+            disabled={!enableIds.length}
+          >
+            Enable shown ({enableIds.length})
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            icon="block"
+            onClick={() => onSetModelsDisabled(disableIds, true)}
+            disabled={!disableIds.length}
+          >
+            Disable shown ({disableIds.length})
+          </Button>
+        </div>
+      )}
+
       {allModels.length > 0 && (
         <div className="flex flex-col gap-3">
-          {allModels.map(({ id, alias, source }) => (
+          {visibleModels.length === 0 && (
+            <p className="text-xs text-text-muted">No model matches this filter.</p>
+          )}
+          {visibleModels.map(({ id, alias, source }) => (
             <CompatibleModelRow
               key={`${source}-${providerStorageAlias}/${id}`}
               modelId={id}

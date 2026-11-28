@@ -245,16 +245,19 @@ export default function ProviderDetailPage() {
 
   const handleSetModelsDisabled = async (ids, disabled) => {
     try {
-      const res = disabled
-        ? await fetch("/api/models/disabled", {
+      const results = disabled
+        ? [await fetch("/api/models/disabled", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ providerAlias: providerStorageAlias, ids }),
-          })
-        : await Promise.all(ids.map((id) => fetch(`/api/models/disabled?providerAlias=${encodeURIComponent(providerStorageAlias)}&id=${encodeURIComponent(id)}`, { method: "DELETE" }))).then((rs) => rs[0] || { ok: true });
-      if (res.ok) await fetchDisabledModels();
+          })]
+        : await Promise.all(ids.map((id) => fetch(`/api/models/disabled?providerAlias=${encodeURIComponent(providerStorageAlias)}&id=${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => ({ ok: false }))));
+      if (results.some((res) => !res.ok)) alert("Some models could not be updated. Please try again.");
     } catch (error) {
       console.log("Error updating disabled models:", error);
+      alert("Models could not be updated. Please try again.");
+    } finally {
+      await fetchDisabledModels();
     }
   };
 
