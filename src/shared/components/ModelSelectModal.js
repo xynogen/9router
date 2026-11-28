@@ -844,7 +844,7 @@ export default function ModelSelectModal({
                   >
                     <span className="flex items-center gap-1">
                       {model.rank != null && <span className="text-text-muted font-mono">#{model.rank}</span>}
-                      {model.score != null && <span className="text-primary font-mono" title="Estimated benchmark score (modelgrep / Artificial Analysis)">{model.score}</span>}
+                      {model.score != null && <span className="text-primary font-mono" title="Estimated benchmark score (modelgrep / Artificial Analysis)">⚡{model.score}</span>}
                       {addedModelValues.includes(model.value) && !isPlaceholder && (
                         <span className="material-symbols-outlined leading-none" style={{ fontSize: "10px" }}>check</span>
                       )}

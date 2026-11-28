@@ -47,8 +47,10 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
   const visibleModels = query
     ? allModels.filter((model) => model.id.toLowerCase().includes(query))
     : allModels;
-  const enableIds = visibleModels.filter((model) => disabledModelIds.includes(model.id)).map((model) => model.id);
-  const disableIds = visibleModels.filter((model) => !disabledModelIds.includes(model.id)).map((model) => model.id);
+  const enabledModels = visibleModels.filter((model) => !disabledModelIds.includes(model.id));
+  const disabledModels = visibleModels.filter((model) => disabledModelIds.includes(model.id));
+  const enableIds = disabledModels.map((model) => model.id);
+  const disableIds = enabledModels.map((model) => model.id);
 
   const handleAdd = async () => {
     if (!newModel.trim() || adding) return;
@@ -176,7 +178,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
           {visibleModels.length === 0 && (
             <p className="col-span-full text-xs text-text-muted">No model matches this filter.</p>
           )}
-          {visibleModels.map(({ id, alias, source }) => (
+          {enabledModels.map(({ id, alias, source }) => (
             <ModelRow
               key={`${source}-${providerStorageAlias}/${id}`}
               model={{ id }}
@@ -188,12 +190,29 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
               onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
               testStatus={modelTestResults[id]}
               isTesting={testingModelId === id}
-              enabled={!disabledModelIds.includes(id)}
               rank={modelRanks.get(id)?.rank}
               score={modelRanks.get(id)?.score}
-              onToggle={(on) => onSetModelsDisabled([id], !on)}
+              onDisable={() => onSetModelsDisabled([id], true)}
             />
           ))}
+          {disabledModels.length > 0 && (
+            <div className="col-span-full mt-2">
+              <p className="text-xs text-text-muted mb-2">Disabled models ({disabledModels.length}):</p>
+              <div className="flex flex-wrap gap-2">
+                {disabledModels.map(({ id, source }) => (
+                  <button
+                    key={`${source}-${providerStorageAlias}/${id}`}
+                    onClick={() => onSetModelsDisabled([id], false)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                    title="Enable model"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">add</span>
+                    {id}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

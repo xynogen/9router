@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
-import { CapacityBadges, Toggle } from "@/shared/components";
+import { CapacityBadges } from "@/shared/components";
 
-export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting, onDisable, caps, thinkingSuffix, rank, score, enabled = true, onToggle }) {
+export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting, onDisable, caps, thinkingSuffix, rank, score }) {
   const displayModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
   // "GPT 6.2 Sol" just restates "gpt-6.2-sol"; show the name only when it adds information.
   const squash = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -19,7 +19,7 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
     : undefined;
 
   return (
-    <div className={`group h-full min-w-0 rounded-lg border px-3 py-2 ${borderColor} hover:bg-sidebar/50 ${enabled ? "" : "opacity-60"}`}>
+    <div className={`group h-full min-w-0 rounded-lg border px-3 py-2 ${borderColor} hover:bg-sidebar/50`}>
       <div className="flex min-w-0 items-center gap-2">
         <span
           className="material-symbols-outlined shrink-0 text-base"
@@ -33,7 +33,7 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
             {(rank != null || score != null) && (
               <span className="inline-flex shrink-0 items-center gap-1 rounded bg-primary/10 px-1.5 py-px font-mono text-[11px] leading-4" title="Local rank · estimated benchmark score (modelgrep / Artificial Analysis)">
                 {rank != null && <span className="text-text-muted">#{rank}</span>}
-                {score != null && <span className="font-semibold text-primary">{score}</span>}
+                {score != null && <span className="font-semibold text-primary">⚡{score}</span>}
               </span>
             )}
             {showName && <span className="min-w-0 truncate text-[11px] italic text-text-muted/70" title={model.name}>{model.name}</span>}
@@ -70,16 +70,7 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
               {copied === `model-${model.id}` ? "Copied!" : "Copy"}
             </span>
           </div>
-          {onToggle && <Toggle size="sm" checked={enabled} onChange={onToggle} />}
-          {isCustom ? (
-            <button
-              onClick={onDeleteAlias}
-              className="rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
-              title="Remove custom model"
-            >
-              <span className="material-symbols-outlined text-sm">close</span>
-            </button>
-          ) : onDisable ? (
+          {onDisable && (
             <button
               onClick={onDisable}
               className="rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
@@ -87,7 +78,16 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
             >
               <span className="material-symbols-outlined text-sm">close</span>
             </button>
-          ) : null}
+          )}
+          {isCustom && (
+            <button
+              onClick={onDeleteAlias}
+              className="rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
+              title="Remove custom model"
+            >
+              <span className="material-symbols-outlined text-sm">{onDisable ? "delete" : "close"}</span>
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -114,6 +114,4 @@ ModelRow.propTypes = {
   thinkingSuffix: PropTypes.string,
   rank: PropTypes.number,
   score: PropTypes.number,
-  enabled: PropTypes.bool,
-  onToggle: PropTypes.func,
 };
