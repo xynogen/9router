@@ -13,6 +13,7 @@ import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS,
 import { parseSearchQuery, matchesSearch } from "@/shared/utils/modelSearchFilter";
 import { getDeactivatedProviderIds } from "@/shared/utils/connectionStatus";
 import { NO_AUTH_PROVIDER_IDS, LIVE_CATALOG_PROVIDERS, liveModelCaps } from "@/shared/utils/selectableModels";
+import { rankModelGroups } from "@/shared/utils/modelRanking";
 
 // Provider order: OAuth first, then Free Tier, then API Key (matches dashboard/providers)
 const PROVIDER_ORDER = [
@@ -133,6 +134,16 @@ export default function ModelSelectModal({
   const [providerNodes, setProviderNodes] = useState([]);
   const [customModels, setCustomModels] = useState([]);
   const [disabledModels, setDisabledModels] = useState({});
+  const [benchmarks, setBenchmarks] = useState([]);
+  useEffect(() => {
+    if (!isOpen || kindFilter) return undefined;
+    const controller = new AbortController();
+    fetch("/api/models/benchmarks", { signal: controller.signal })
+      .then((response) => { if (!response.ok) throw new Error(`Benchmark fetch failed: ${response.status}`); return response.json(); })
+      .then((data) => { if (!controller.signal.aborted) setBenchmarks(data.models || []); })
+      .catch(() => { if (!controller.signal.aborted) setBenchmarks([]); });
+    return () => controller.abort();
+  }, [isOpen, kindFilter]);
   // Cursor and Cline expose the usable catalog per account, so the static catalog is
   // kept only as a fallback: it goes stale quickly and entitlements differ per account.
   // Single map driven by LIVE_CATALOG_PROVIDERS so the constant cannot drift
@@ -514,6 +525,7 @@ export default function ModelSelectModal({
 
     return groups;
   }, [filteredActiveProviders, modelAliases, allProviders, providerNodes, customModels, disabledModels, kindFilter, effectiveConnections, deactivatedProviderIds, cursorModels, clineModels, clinepassModels, zedModels, claudeModels, commandcodeModels]);
+  const rankedGroups = useMemo(() => kindFilter ? groupedModels : rankModelGroups(groupedModels, benchmarks), [groupedModels, benchmarks, kindFilter]);
 
   // Parse search query into structured query (regex, positive tokens, negative tokens)
   const parsedQuery = useMemo(() => parseSearchQuery(searchQuery), [searchQuery]);
@@ -525,17 +537,18 @@ export default function ModelSelectModal({
     return combos.filter(c => matchesSearch(c.name, parsedQuery));
   }, [combos, parsedQuery, kindFilter, capFilter]);
 
-  // Sort models alphabetically, with added models floated to top
+  // Keep selected models first; within each section prefer scored models.
   const sortModels = (models) => {
-    const added = models.filter(m => addedModelValues.includes(m.value)).sort((a, b) => a.name.localeCompare(b.name));
-    const rest = models.filter(m => !addedModelValues.includes(m.value)).sort((a, b) => a.name.localeCompare(b.name));
+    const byRank = (a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || (a.name || a.id).localeCompare(b.name || b.id);
+    const added = models.filter(m => addedModelValues.includes(m.value)).sort(byRank);
+    const rest = models.filter(m => !addedModelValues.includes(m.value)).sort(byRank);
     return [...added, ...rest];
   };
 
   // Filter models by search query (supports substring, regex, and negation !token / -token)
   const filteredGroups = useMemo(() => {
     const filtered = {};
-    Object.entries(groupedModels).forEach(([providerId, group]) => {
+    Object.entries(rankedGroups).forEach(([providerId, group]) => {
       let models = group.models;
       // Filter by input-modality capability (vision/pdf/audioInput/videoInput).
       if (capFilter) {
@@ -571,7 +584,7 @@ export default function ModelSelectModal({
     });
 
     return filtered;
-  }, [groupedModels, parsedQuery, addedModelValues, allowProviderWildcard]);
+  }, [rankedGroups, parsedQuery, addedModelValues, allowProviderWildcard, capFilter, getCaps]);
 
   // Visible models available for batch actions (excluding placeholders)
   const visibleModels = useMemo(() => {
@@ -830,6 +843,8 @@ export default function ModelSelectModal({
                     `}
                   >
                     <span className="flex items-center gap-1">
+                      {model.rank != null && <span className="text-text-muted font-mono">#{model.rank}</span>}
+                      {model.score != null && <span className="text-primary font-mono" title="Estimated benchmark score (modelgrep / Artificial Analysis)">{model.score}</span>}
                       {addedModelValues.includes(model.value) && !isPlaceholder && (
                         <span className="material-symbols-outlined leading-none" style={{ fontSize: "10px" }}>check</span>
                       )}
