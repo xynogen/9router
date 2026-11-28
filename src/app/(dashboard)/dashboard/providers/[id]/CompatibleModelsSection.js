@@ -4,7 +4,9 @@ import { useState } from "react";
 import PropTypes from "prop-types";
 import { Button, Toggle } from "@/shared/components";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
-function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onTest, testStatus, isTesting, enabled, onToggle }) {
+import { useModelBenchmarks } from "@/shared/hooks/useModelBenchmarks";
+import { rankModelList } from "@/shared/utils/modelRanking";
+function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onTest, testStatus, isTesting, enabled, onToggle, rank, score }) {
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
     : testStatus === "error"
@@ -26,7 +28,11 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
         {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{modelId}</p>
+        <p className="flex items-center gap-1.5 text-sm font-medium truncate">
+          {rank != null && <span className="shrink-0 font-mono text-[11px] font-normal text-text-muted" title="Local rank by benchmark score">#{rank}</span>}
+          {score != null && <span className="shrink-0 font-mono text-[11px] font-normal text-primary/80" title="Estimated benchmark score (modelgrep / Artificial Analysis)">{score}</span>}
+          <span className="truncate">{modelId}</span>
+        </p>
         <div className="flex items-center gap-1 mt-1">
           <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
           <div className="relative group/btn">
@@ -104,6 +110,8 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
     providerAlias: providerStorageAlias,
     type: "llm",
   });
+  const benchmarks = useModelBenchmarks();
+  const modelRanks = rankModelList(allModels, providerStorageAlias, benchmarks);
 
   const query = filter.trim().toLowerCase();
   const visibleModels = query
@@ -250,6 +258,8 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
               testStatus={modelTestResults[id]}
               isTesting={testingModelId === id}
               enabled={!disabledModelIds.includes(id)}
+              rank={modelRanks.get(id)?.rank}
+              score={modelRanks.get(id)?.score}
               onToggle={(on) => onSetModelsDisabled([id], !on)}
             />
           ))}

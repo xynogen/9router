@@ -52,3 +52,9 @@ export function rankModelGroups(groups, catalog) {
     models: group.models.map((model) => ranked.get(model)).sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || (a.name || a.id).localeCompare(b.name || b.id)),
   }]));
 }
+
+/** Rank one provider's models by id, without reordering the caller's list. */
+export function rankModelList(models, alias, catalog) {
+  const ranked = rankModelGroups({ provider: { alias, models } }, catalog).provider.models;
+  return new Map(ranked.map(({ id, rank, score }) => [id, { rank, score }]));
+}

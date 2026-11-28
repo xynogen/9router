@@ -12,6 +12,8 @@ import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
+import { useModelBenchmarks } from "@/shared/hooks/useModelBenchmarks";
+import { rankModelList } from "@/shared/utils/modelRanking";
 import { translate } from "@/i18n/runtime";
 import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
 import { applyQoderModelNames, getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
@@ -1236,6 +1238,8 @@ export default function ProviderDetailPage() {
     ...disabledDisplayModels.map((m) => ({ id: m.id, isNew: false })),
     ...(isOpenCodeFree ? unaddedModels.map((m) => ({ id: m.id, isNew: true })) : []),
   ];
+  const benchmarks = useModelBenchmarks();
+  const modelRanks = rankModelList([...manageableModels, ...customModelRows], providerStorageAlias, benchmarks);
 
   const renderModelsSection = () => {
     if (isCompatible) {
@@ -1286,6 +1290,8 @@ export default function ProviderDetailPage() {
             isFree={false}
             caps={getCaps(`${providerId}/${model.id}`)}
             thinkingSuffix={resolveThinkingSuffix(model.id)}
+            rank={modelRanks.get(model.id)?.rank}
+            score={modelRanks.get(model.id)?.score}
           />
         ))}
 
@@ -1312,6 +1318,8 @@ export default function ProviderDetailPage() {
               onDisable={() => handleDisableModel(model.id)}
               caps={getCaps(`${providerId}/${model.id}`)}
               thinkingSuffix={resolveThinkingSuffix(model.id)}
+              rank={modelRanks.get(model.id)?.rank}
+              score={modelRanks.get(model.id)?.score}
             />
           );
         })}

@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { benchmarkScore, rankModelGroups } from "../../src/shared/utils/modelRanking.js";
+import { benchmarkScore, rankModelGroups, rankModelList } from "../../src/shared/utils/modelRanking.js";
 
 const model = (id, aa) => ({ id: `openai/${id}`, benchmarks: aa ? { artificial_analysis: aa } : null });
 
@@ -27,4 +27,14 @@ test("ranks only matched available models; leaves off-catalog and placeholders u
     ["top", 1], ["low", 2], ["unscored", 3], ["missing", null], ["__placeholder__cx", null],
   ]);
   assert.equal(groups.cx.models[0].rank, undefined);
+});
+
+test("rankModelList keeps the caller's order and keys ranks by model id", () => {
+  const catalog = [model("top", { intelligence: 60 }), model("low", { intelligence: 30 })];
+  const models = [{ id: "low" }, { id: "top" }, { id: "unknown" }];
+  const ranks = rankModelList(models, "openai", catalog);
+  assert.deepEqual(models.map((m) => m.id), ["low", "top", "unknown"]);
+  assert.deepEqual(ranks.get("top"), { rank: 1, score: 92 });
+  assert.deepEqual(ranks.get("low"), { rank: 2, score: 46 });
+  assert.deepEqual(ranks.get("unknown"), { rank: null, score: null });
 });
