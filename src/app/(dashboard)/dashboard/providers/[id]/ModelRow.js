@@ -19,18 +19,19 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
     : undefined;
 
   return (
-    <div className={`group h-full min-w-0 rounded-lg border px-3 py-2 ${borderColor} hover:bg-sidebar/50`}>
-      <div className="flex min-w-0 items-center gap-2">
-        {/* Fixed width keeps names aligned across cards, ranked or not. */}
-        <span className="w-8 shrink-0 text-center font-mono text-sm font-semibold text-text-muted" title={rank != null ? "Local rank by benchmark score" : undefined}>
-          {rank != null && `#${rank}`}
-        </span>
+    <div className={`group flex h-full min-w-0 overflow-hidden rounded-lg border ${borderColor} hover:bg-sidebar/50`}>
+      {/* Full-height rank column; fixed width keeps names aligned across cards, ranked or not. */}
+      <span className="flex w-12 shrink-0 items-center justify-center self-stretch border-r border-border bg-sidebar/60 font-mono text-lg font-bold text-text-main" title={rank != null ? "Local rank by benchmark score" : undefined}>
+        {rank != null && `#${rank}`}
+      </span>
+      <div className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="flex min-w-0 items-center gap-1">
             <span className="material-symbols-outlined shrink-0 text-text-muted/70" style={{ fontSize: "14px", color: iconColor }}>
               {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
             </span>
-            <code className="min-w-0 truncate rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted" title={displayModel}>{displayModel}</code>
+            {/* The id is what users scan for: wrap it, never truncate. */}
+            <code className="min-w-0 break-words rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted" title={displayModel}>{displayModel}</code>
           </span>
           <span className="flex min-h-5 min-w-0 items-center gap-1.5 pl-[18px]">
             {score != null && (
@@ -40,9 +41,7 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
             )}
             {showName && <span className="min-w-0 truncate text-[11px] italic text-text-muted/70" title={model.name}>{model.name}</span>}
             <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={14} />
-          </span>
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+            <span className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
           {onTest && (
             <div className="relative shrink-0 group/btn">
               <button
@@ -90,6 +89,8 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
               {copied === `model-${model.id}` ? "Copied!" : "Copy"}
             </span>
           </div>
+            </span>
+          </span>
         </div>
       </div>
     </div>
