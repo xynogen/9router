@@ -32,8 +32,9 @@ export function rankModelGroups(groups, catalog) {
     if (!bySlug.has(slug)) bySlug.set(slug, model);
   }
   const entries = Object.entries(groups).flatMap(([providerId, group]) => group.models.map((model) => {
-    const slug = normalized(model.id);
-    const benchmark = model.isPlaceholder ? null : byId.get(normalized(`${group.alias || providerId}/${model.id}`)) || bySlug.get(slug);
+    // Compatible providers use vendor-prefixed ids ("Qwen/Qwen3-14B"): try the id as a catalog id, then its last segment.
+    const slug = normalized(model.id.split("/").at(-1));
+    const benchmark = model.isPlaceholder ? null : byId.get(normalized(`${group.alias || providerId}/${model.id}`)) || byId.get(normalized(model.id)) || bySlug.get(slug);
     return { model, benchmark, score: benchmarkScore(benchmark) };
   }));
   entries.sort((a, b) => {

@@ -21,19 +21,21 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
   return (
     <div className={`group h-full min-w-0 rounded-lg border px-3 py-2 ${borderColor} hover:bg-sidebar/50`}>
       <div className="flex min-w-0 items-center gap-2">
-        <span
-          className="material-symbols-outlined shrink-0 text-base"
-          style={iconColor ? { color: iconColor } : undefined}
-        >
-          {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
+        {/* Fixed width keeps names aligned across cards, ranked or not. */}
+        <span className="w-8 shrink-0 text-center font-mono text-sm font-semibold text-text-muted" title={rank != null ? "Local rank by benchmark score" : undefined}>
+          {rank != null && `#${rank}`}
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <code className="w-fit max-w-full truncate rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted" title={displayModel}>{displayModel}</code>
-          <span className="flex min-h-5 min-w-0 items-center gap-1.5 pl-0.5">
-            {(rank != null || score != null) && (
-              <span className="inline-flex shrink-0 items-center gap-1 rounded bg-primary/10 px-1.5 py-px font-mono text-[11px] leading-4" title="Local rank · estimated benchmark score (modelgrep / Artificial Analysis)">
-                {rank != null && <span className="text-text-muted">#{rank}</span>}
-                {score != null && <span className="font-semibold text-primary">⚡{score}</span>}
+          <span className="flex min-w-0 items-center gap-1">
+            <span className="material-symbols-outlined shrink-0 text-text-muted/70" style={{ fontSize: "14px", color: iconColor }}>
+              {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
+            </span>
+            <code className="min-w-0 truncate rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted" title={displayModel}>{displayModel}</code>
+          </span>
+          <span className="flex min-h-5 min-w-0 items-center gap-1.5 pl-[18px]">
+            {score != null && (
+              <span className="inline-flex h-4 shrink-0 items-center justify-center gap-px rounded bg-primary/10 px-1.5 font-mono text-[11px] font-semibold leading-none text-primary" title="Estimated benchmark score (modelgrep / Artificial Analysis)">
+                <span className="text-[9px]">⚡</span>{score}
               </span>
             )}
             {showName && <span className="min-w-0 truncate text-[11px] italic text-text-muted/70" title={model.name}>{model.name}</span>}

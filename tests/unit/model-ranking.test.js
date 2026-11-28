@@ -38,3 +38,13 @@ test("rankModelList keeps the caller's order and keys ranks by model id", () => 
   assert.deepEqual(ranks.get("low"), { rank: 2, score: 46 });
   assert.deepEqual(ranks.get("unknown"), { rank: null, score: null });
 });
+
+test("matches vendor-prefixed ids from compatible providers", () => {
+  const catalog = [
+    { id: "qwen/qwen3-14b", benchmarks: { artificial_analysis: { intelligence: 30 } } },
+    { id: "deepseek/deepseek-v4.1-flash-1017", benchmarks: { artificial_analysis: { intelligence: 50 } } },
+  ];
+  const ranks = rankModelList([{ id: "Qwen/Qwen3-14B" }, { id: "deepseek-ai/DeepSeek-V4.1-Flash-1017" }], "di", catalog);
+  assert.equal(ranks.get("deepseek-ai/DeepSeek-V4.1-Flash-1017").rank, 1);
+  assert.equal(ranks.get("Qwen/Qwen3-14B").rank, 2);
+});
