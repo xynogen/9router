@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 
 const root = new URL("../../src/", import.meta.url);
 const menu = readFileSync(new URL("shared/components/HeaderMenu.js", root), "utf8");

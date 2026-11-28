@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 
 const section = readFileSync(new URL("../../src/app/(dashboard)/dashboard/providers/[id]/CompatibleModelsSection.js", import.meta.url), "utf8");
 const page = readFileSync(new URL("../../src/app/(dashboard)/dashboard/providers/[id]/page.js", import.meta.url), "utf8");
