@@ -1265,7 +1265,7 @@ export default function ProviderDetailPage() {
     const displayModels = allChatModels.filter((m) => !disabledSet.has(m.id));
 
     return (
-      <div className="flex flex-wrap gap-3">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),1fr))] gap-3">
         {/* Custom models first */}
         {customModelRows.filter((m) => !isOpenCodeFree || !disabledSet.has(m.id)).map((model) => (
           <ModelRow
@@ -1363,7 +1363,7 @@ export default function ProviderDetailPage() {
 
         {/* Suggested models from provider API — show only models not yet added */}
         {!isOpenCodeFree && unaddedModels.length > 0 && (
-          <div className="w-full mt-2">
+          <div className="col-span-full mt-2">
             <p className="text-xs text-text-muted mb-2">Suggested free models (≥200k context):</p>
             <div className="flex flex-wrap gap-2">
               {unaddedModels.map((m) => (
@@ -1383,7 +1383,7 @@ export default function ProviderDetailPage() {
 
         {/* Disabled models — restorable */}
         {disabledModelRows.length > 0 && (
-          <div className="w-full mt-2">
+          <div className="col-span-full mt-2">
             <p className="text-xs text-text-muted mb-2">Disabled models ({disabledModelRows.length}):</p>
             <div className="flex flex-wrap gap-2">
               {disabledModelRows.map(({ id, isNew }) => (
